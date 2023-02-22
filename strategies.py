@@ -13,21 +13,11 @@ from abc import ABC, abstractmethod
 
 from sklearn.model_selection import TimeSeriesSplit
 from queue import PriorityQueue
+from globals import *
 import statistics_1
 
 # filter some warnings
 warnings.filterwarnings('ignore')
-
-TRANSACTION_COST = 0.001
-BUY = 1
-SELL = -1
-HOLD = 0
-ALL = "all"
-TRAIN = "train"
-TEST = "test"
-TRAINTEST = "trainTest"
-PRICE = "price"
-RETURN = "return"
 
 
 class Reporting():
@@ -49,10 +39,21 @@ class Reporting():
             _, keyPop = self.q[strategyName].get()
             del self.content[keyPop]
         
-    def writeReport(self, path):        
+    def writeReport(self, path):                
         for key in self.content:
             keyPath = key.replace(":", "")
             self.content[key].to_csv(path + keyPath + ".csv")
+    
+    def writeReportTest(self, path):
+        if len(self.content) == 0:
+            return 
+        
+        df = self.content[next(iter(self.content))]
+        for key in self.content:
+            df["strategyReturn " + str(key)] = self.content[key]["strategyReturns"]
+            df["signals " + str(key)] = self.content[key]["signals"]
+            
+        df.to_csv(path + "reportTest.csv")
     
     def cleanVars(self):
         self.content = {}
@@ -69,6 +70,7 @@ class TimeSeries(ABC):
         self.dfTestList = []
         self.dfTrainTestList = []
         self.reports = Reporting()
+        self.reportEnabled = False
     
     @abstractmethod
     def generate_data():
@@ -135,6 +137,14 @@ class TimeSeries(ABC):
         self.dfTrain = self.dfTrainList[index]
         self.dfTest = self.dfTestList[index]
         self.dfTrainTest = pd.concat([self.dfTrain, self.dfTest])
+    
+    def set_current_train_data(self, index):
+        self.dfTrain = self.dfTrainList[index]
+        self.dfTrainTest = pd.concat([self.dfTrain, self.dfTest])    
+    
+    def set_current_test_data(self, index):
+        self.dfTest = self.dfTestList[index]
+        self.dfTrainTest = pd.concat([self.dfTrain, self.dfTest])
         
     def get_train_data(self, index):
         return self.dfTrainList[index]
@@ -152,7 +162,6 @@ class BinanceTimeSeries(TimeSeries):
         for train_index, test_index in self.tss.split(self.df):
             self.dfTrainList.append(self.df.iloc[train_index, :])
             self.dfTestList.append(self.df.iloc[test_index, :])
-            #self.dfTrainTestList.append(self.df.iloc[test_index, :])
         
         self.set_current_train_test_data(0)
         
@@ -168,8 +177,8 @@ class BinanceTimeSeries(TimeSeries):
         df = pd.DataFrame(candle, columns=['dateTime', 'open', 'high', 'low', 'close', 'volume', 'closeTime', 'quoteAssetVolume', 'numberOfTrades', 'takerBuyBaseVol', 'takerBuyQuoteVol', 'ignore'])
 
         # as timestamp is returned in ms, let us convert this back to proper timestamps.
-        dateTimeFormat = "%y-%m-%d %H:%M:%S"
-        df.dateTime = pd.to_datetime(df.dateTime, unit='ms').dt.strftime(dateTimeFormat)
+        dateTimeFormat = "%d-%m-%y %H:%M:%S"
+        df.dateTime = pd.to_datetime(df.dateTime, unit='ms')#.dt.strftime(dateTimeFormat)
         df.set_index('dateTime', inplace = True)
         df.sort_index(inplace = True)
         
@@ -219,9 +228,10 @@ class Strategy():
     # Computes SMA
     def get_simple_moving_average(prices, period):
         ma = prices.rolling(window = period).mean()
+        
+        # to avoid NA values in the first entries
         for i in range(period):
-            pd_index = i + prices.first_valid_index()
-            ma[pd_index] = prices[pd_index]
+            ma[i] = prices[i]
         
         return ma
 
@@ -236,9 +246,8 @@ class Strategy():
         upper = ma + num_std * std
         lower = ma - num_std * std
         for i in range(period):
-            pd_index = i + prices.first_valid_index()
-            upper[pd_index] = prices[pd_index]
-            lower[pd_index] = prices[pd_index]
+            upper[i] = prices[i]
+            lower[i] = prices[i]
            
         return upper, lower
 
@@ -297,9 +306,8 @@ class Strategy():
         prev_cash = cashStart
         prev_w = 0
         last_signal = 0
-        firstIndex = prices.first_valid_index()
-        for i in range(0, len(prices) ):
-            cash[i], w[i] = Strategy.position(prices[i + firstIndex], signals[i], last_signal, prev_cash, prev_w)
+        for i in range(len(prices)):
+            cash[i], w[i] = Strategy.position(prices[i], signals[i], last_signal, prev_cash, prev_w)
             if signals[i] != HOLD:
                 last_signal = signals[i]
                 
@@ -307,9 +315,9 @@ class Strategy():
             prev_w = w[i]
         
         strategy_returns =  [a * b for a, b in zip(w, prices)] + cash
+        strategy_returns = pd.Series(strategy_returns, index = prices.index)
         if useSet == TEST:
             strategy_returns = strategy_returns[startAfter:]
-            signals = signals[startAfter:]
         
         return strategy_returns
     
@@ -318,20 +326,23 @@ class Strategy():
         
     def getPrices(timeSeries, useSet):
         if useSet == TEST:
-            return TimeSeries.get_static_prices(timeSeries.get_set(use_set = TRAINTEST)).reset_index(drop = True)
+            return TimeSeries.get_static_prices(timeSeries.get_set(use_set = TRAINTEST))
 
-        return TimeSeries.get_static_prices(timeSeries.get_set(use_set = useSet)).reset_index(drop = True)                          
+        return TimeSeries.get_static_prices(timeSeries.get_set(use_set = useSet))
         
     def getStartAfter(timeSeries, useSet):
         return len(timeSeries.dfTrain) if useSet == TEST else 0
     
-    def addReport(self, strategyReturns, signals, params):
-        df = self.timeSeries.get_set(use_set = self.useSet)
+    def addReport(self, strategyName, strategyReturns, signals, params):
+        if not self.timeSeries.reportEnabled:
+            return
+        
+        df = self.timeSeries.get_set(use_set = self.useSet).copy()
         df["strategyReturns"] = strategyReturns
         df["signals"] = signals
-        self.timeSeries.reports.addReport(strategyName = "Test", params = params, finalCash = strategyReturns[-1], df = df)
+        self.timeSeries.reports.addReport(strategyName = strategyName, params = params, finalCash = strategyReturns[-1], df = df)
     
-
+ 
 """
     Class that encapsulates the Trend Following Strategy
     Both with SMA and EMA was impelemnted for comparison purposes
@@ -363,9 +374,9 @@ class TrendFollowing(Strategy):
             return HOLD
     
     def signal_bb_rsi(price, bb_upper, bb_lower, rsi):
-        if rsi < 20 and price < bb_lower:
+        if rsi < 10 and price < bb_lower:
             return SELL
-        elif rsi > 80 and price > bb_upper:
+        elif rsi > 90 and price > bb_upper:
             return BUY
         else:
             return HOLD
@@ -373,7 +384,7 @@ class TrendFollowing(Strategy):
     def TF_simple_bayes(self, period):
         valuesOpt = []
         for i in range(len(self.timeSeries.dfTrainList)):
-            self.timeSeries.set_current_train_test_data(i)
+            self.timeSeries.set_current_train_data(i)
             self.setUseSet(TRAIN)
             strategyReturns = self.TF_simple(period)
             # returns = TimeSeries.pricesToReturns(strategyReturns)
@@ -388,26 +399,31 @@ class TrendFollowing(Strategy):
         prices = Strategy.getPrices(self.timeSeries, self.useSet)
         startAfter = Strategy.getStartAfter(self.timeSeries, self.useSet)
         moving_averages = Strategy.get_simple_moving_average(prices, period)
-        
+            
         signals = np.zeros(np.shape(prices))
-        firstIndex = prices.first_valid_index()
         for i in range(0, len(prices)):
             if startAfter > i:
                 signals[i] = HOLD
                 continue
             
-            price = prices[i + firstIndex]
-            signals[i] = TrendFollowing.signal(price, moving_averages[i + firstIndex])
+            signals[i] = TrendFollowing.signal(prices[i], moving_averages[i])
             
         strategyReturns = Strategy.getStrategyReturns(prices, signals, self.cashStart, self.useSet, startAfter)
-        #self.addReport(strategyReturns, signals, period)
+        if self.useSet == TEST:
+            signals = signals[startAfter:] 
+            
+        self.addReport("TFS", strategyReturns, signals, period)
         
         return strategyReturns
+    
+    def TF_simple_exec(prices, period):
+        moving_averages = Strategy.get_simple_moving_average(prices, period)
+        return TrendFollowing.signal(prices[-1], moving_averages[-1])
     
     def TF_exponential_bayes(self, alpha):
         valuesOpt = []
         for i in range(len(self.timeSeries.dfTrainList)):
-            self.timeSeries.set_current_train_test_data(i)
+            self.timeSeries.set_current_train_data(i)
             self.setUseSet(TRAIN)
             strategyReturns = self.TF_exponential(alpha)
             # returns = TimeSeries.pricesToReturns(strategyReturns)
@@ -423,24 +439,25 @@ class TrendFollowing(Strategy):
         moving_averages = Strategy.get_exponential_moving_average(prices, alpha)
         
         signals = np.zeros(np.shape(prices))
-        firstIndex = prices.first_valid_index()
         for i in range(0, len(prices)):
             if startAfter > i:
                 signals[i] = HOLD
                 continue
             
-            price = prices[i + firstIndex]
-            signals[i] = TrendFollowing.signal(price, moving_averages[i + firstIndex])
+            signals[i] = TrendFollowing.signal(prices[i], moving_averages[i])
             
         strategyReturns = Strategy.getStrategyReturns(prices, signals, self.cashStart, self.useSet, startAfter)
-        #self.addReport(strategyReturns, signals, alpha)
+        if self.useSet == TEST:
+            signals = signals[startAfter:] 
+            
+        self.addReport("TFE", strategyReturns, signals, alpha)
         
         return strategyReturns
     
     def TF_bb_rsi_bayes(self, bb_period, bb_std, rsi_period):
         valuesOpt = []
         for i in range(len(self.timeSeries.dfTrainList)):
-            self.timeSeries.set_current_train_test_data(i)
+            self.timeSeries.set_current_train_data(i)
             self.setUseSet(TRAIN)
             strategyReturns = self.TF_bb_rsi(bb_period, bb_std, rsi_period)
             # returns = TimeSeries.pricesToReturns(strategyReturns)
@@ -459,23 +476,30 @@ class TrendFollowing(Strategy):
         rsi = Strategy.get_rsi(prices, rsi_period)
         
         signals = np.zeros(np.shape(prices))
-        firstIndex = prices.first_valid_index()
         for i in range(0, len(prices)):
             if startAfter > i:
                 signals[i] = HOLD
                 continue
             
-            signals[i] = TrendFollowing.signal_bb_rsi(prices[i + firstIndex], bb_upper[i + firstIndex], bb_lower[i + firstIndex], rsi[i + firstIndex])
+            signals[i] = TrendFollowing.signal_bb_rsi(prices[i], bb_upper[i], bb_lower[i], rsi[i])
             
         strategyReturns = Strategy.getStrategyReturns(prices, signals, self.cashStart, self.useSet, startAfter)
-        #self.addReport(strategyReturns, signals, [longPeriod, shortPeriod])
+        if self.useSet == TEST:
+            signals = signals[startAfter:] 
+            
+        self.addReport("TFBBRSI", strategyReturns, signals, [bb_period, bb_std, rsi_period])
         
         return strategyReturns
+    
+    def TF_bb_rsi_exec(prices, bb_period, bb_std, rsi_period):
+        bb_upper, bb_lower = Strategy.get_bollinger_bands(prices, bb_period, bb_std)
+        rsi = Strategy.get_rsi(prices, rsi_period)
+        return TrendFollowing.signal_bb_rsi(prices[-1], bb_upper[-1], bb_lower[-1], rsi[-1])
         
     def TF_crossover_simple_bayes(self, longPeriod, shortPeriod):
         valuesOpt = []
         for i in range(len(self.timeSeries.dfTrainList)):
-            self.timeSeries.set_current_train_test_data(i)
+            self.timeSeries.set_current_train_data(i)
             self.setUseSet(TRAIN)
             strategyReturns = self.TF_crossover_simple(longPeriod, shortPeriod)
             # returns = TimeSeries.pricesToReturns(strategyReturns)
@@ -494,16 +518,18 @@ class TrendFollowing(Strategy):
         moving_averages_short = Strategy.get_simple_moving_average(prices, shortPeriod)
         
         signals = np.zeros(np.shape(prices))
-        firstIndex = prices.first_valid_index()
         for i in range(0, len(prices)):
             if startAfter > i:
                 signals[i] = HOLD
                 continue
             
-            signals[i] = TrendFollowing.signal_crossover(moving_averages_long[i + firstIndex], moving_averages_short[i + firstIndex])
+            signals[i] = TrendFollowing.signal_crossover(moving_averages_long[i], moving_averages_short[i])
             
         strategyReturns = Strategy.getStrategyReturns(prices, signals, self.cashStart, self.useSet, startAfter)
-        #self.addReport(strategyReturns, signals, [longPeriod, shortPeriod])
+        if self.useSet == TEST:
+            signals = signals[startAfter:] 
+            
+        self.addReport("TFCS", strategyReturns, signals, [longPeriod, shortPeriod])
         
         return strategyReturns
     
@@ -513,7 +539,7 @@ class TrendFollowing(Strategy):
         #     return -5
         
         for i in range(len(self.timeSeries.dfTrainList)):
-            self.timeSeries.set_current_train_test_data(i)
+            self.timeSeries.set_current_train_data(i)
             self.setUseSet(TRAIN)
             strategyReturns = self.TF_crossover_exponential(longAlpha, shortAlpha)
             # returns = TimeSeries.pricesToReturns(strategyReturns)
@@ -530,16 +556,18 @@ class TrendFollowing(Strategy):
             moving_averages_short = Strategy.get_exponential_moving_average(prices, shortAlpha)
             
             signals = np.zeros(np.shape(prices))
-            firstIndex = prices.first_valid_index()
             for i in range(0, len(prices)):
                 if startAfter > i:
                     signals[i] = HOLD
                     continue
                 
-                signals[i] = TrendFollowing.signal_crossover(moving_averages_long[i + firstIndex], moving_averages_short[i + firstIndex])
+                signals[i] = TrendFollowing.signal_crossover(moving_averages_long[i], moving_averages_short[i])
                 
             strategyReturns = Strategy.getStrategyReturns(prices, signals, self.cashStart, self.useSet, startAfter)
-            #self.addReport(strategyReturns, signals, [longPeriod, shortPeriod])
+            if self.useSet == TEST:
+                signals = signals[startAfter:] 
+            
+            self.addReport("TFCE", strategyReturns, signals, [longAlpha, shortAlpha])
             
             return strategyReturns
         
@@ -737,12 +765,21 @@ class MeanReversion(Strategy):
                         
         return sum(valuesOpt) / len(valuesOpt)
     
-    def MR_cross_simple_bayes(self, longPeriod, shortPeriod):
+    def MR_crossover_simple_bayes(self, longPeriod, shortPeriod):
         valuesOpt = []
         for i in range(len(self.timeSeries.dfTrainList)):
             self.timeSeries.set_current_train_test_data(i)
             self.setUseSet(TRAIN)
-            valuesOpt.append(self.MR_cross_simple(longPeriod, shortPeriod)[-1])
+            valuesOpt.append(self.MR_crossover_simple(longPeriod, shortPeriod)[-1])
+                        
+        return sum(valuesOpt) / len(valuesOpt)
+    
+    def MR_crossover_exponential_bayes(self, longAlpha, shortAlpha):
+        valuesOpt = []
+        for i in range(len(self.timeSeries.dfTrainList)):
+            self.timeSeries.set_current_train_test_data(i)
+            self.setUseSet(TRAIN)
+            valuesOpt.append(self.MR_crossover_exponential(longAlpha, shortAlpha)[-1])
                         
         return sum(valuesOpt) / len(valuesOpt)
     
@@ -762,19 +799,24 @@ class MeanReversion(Strategy):
         moving_averages = Strategy.get_simple_moving_average(prices, period)
         
         signals = np.zeros(np.shape(prices))
-        firstIndex = prices.first_valid_index()
         for i in range(0, len(prices)):
             if startAfter > i:
                 signals[i] = HOLD
                 continue
             
-            price = prices[i + firstIndex]
-            signals[i] = MeanReversion.signal(price, moving_averages[i + firstIndex])
+            signals[i] = MeanReversion.signal(prices[i], moving_averages[i])
             
         strategyReturns = Strategy.getStrategyReturns(prices, signals, self.cashStart, self.useSet, startAfter)
-        self.addReport(strategyReturns, signals, period)
+        if self.useSet == TEST:
+            signals = signals[startAfter:] 
+                
+        self.addReport("MRS", strategyReturns, signals, period)
         
         return strategyReturns
+    
+    def MR_exponential_exec(prices, alpha):
+        moving_averages = Strategy.get_exponential_moving_average(prices, alpha)
+        return MeanReversion.signal(prices[-1], moving_averages[-1])
     
     def MR_exponential(self, alpha):
         prices = Strategy.getPrices(self.timeSeries, self.useSet)
@@ -782,17 +824,18 @@ class MeanReversion(Strategy):
         moving_averages = Strategy.get_exponential_moving_average(prices, alpha)
         
         signals = np.zeros(np.shape(prices))
-        firstIndex = prices.first_valid_index()
         for i in range(0, len(prices)):
             if startAfter > i:
                 signals[i] = HOLD
                 continue
             
-            price = prices[i + firstIndex]
-            signals[i] = MeanReversion.signal(price, moving_averages[i + firstIndex])
+            signals[i] = MeanReversion.signal(prices[i], moving_averages[i])
             
         strategyReturns = Strategy.getStrategyReturns(prices, signals, self.cashStart, self.useSet, startAfter)
-        self.addReport(strategyReturns, signals, alpha)
+        if self.useSet == TEST:
+            signals = signals[startAfter:] 
+        
+        self.addReport("MRE", strategyReturns, signals, alpha)
         
         return strategyReturns
         
@@ -805,16 +848,18 @@ class MeanReversion(Strategy):
         rsi = Strategy.get_rsi(prices, rsi_period)
         
         signals = np.zeros(np.shape(prices))
-        firstIndex = prices.first_valid_index()
         for i in range(0, len(prices)):
             if startAfter > i:
                 signals[i] = HOLD
                 continue
             
-            signals[i] = MeanReversion.signal_bb_rsi(prices[i + firstIndex], bb_upper[i + firstIndex], bb_lower[i + firstIndex], rsi[i + firstIndex])
+            signals[i] = MeanReversion.signal_bb_rsi(prices[i], bb_upper[i], bb_lower[i], rsi[i])
             
         strategyReturns = Strategy.getStrategyReturns(prices, signals, self.cashStart, self.useSet, startAfter)
-        #self.addReport(strategyReturns, signals, [longPeriod, shortPeriod])
+        if self.useSet == TEST:
+            signals = signals[startAfter:] 
+        
+        self.addReport("MRBR", strategyReturns, signals, [bb_period, bb_std, rsi_period])
         
         return strategyReturns
         
@@ -827,16 +872,34 @@ class MeanReversion(Strategy):
         moving_averages_short = Strategy.get_simple_moving_average(prices, shortPeriod)
         
         signals = np.zeros(np.shape(prices))
-        firstIndex = prices.first_valid_index()
         for i in range(0, len(prices)):
             if startAfter > i:
                 signals[i] = HOLD
                 continue
             
-            signals[i] = MeanReversion.signal_crossover(moving_averages_long[i + firstIndex], moving_averages_short[i + firstIndex])
+            signals[i] = MeanReversion.signal_crossover(moving_averages_long[i], moving_averages_short[i])
             
         strategyReturns = Strategy.getStrategyReturns(prices, signals, self.cashStart, self.useSet, startAfter)
-        #self.addReport(strategyReturns, signals, [longPeriod, shortPeriod])
+        self.addReport("MRCS", strategyReturns, signals, [longPeriod, shortPeriod])
+        
+        return strategyReturns
+    
+    def MR_crossover_exponential(self, longAlpha, shortAlpha):
+        prices = Strategy.getPrices(self.timeSeries, self.useSet)
+        startAfter = Strategy.getStartAfter(self.timeSeries, self.useSet)
+        moving_averages_long = Strategy.get_exponential_moving_average(prices, longAlpha)
+        moving_averages_short = Strategy.get_exponential_moving_average(prices, shortAlpha)
+        
+        signals = np.zeros(np.shape(prices))
+        for i in range(0, len(prices)):
+            if startAfter > i:
+                signals[i] = HOLD
+                continue
+            
+            signals[i] = MeanReversion.signal_crossover(moving_averages_long[i], moving_averages_short[i])
+            
+        strategyReturns = Strategy.getStrategyReturns(prices, signals, self.cashStart, self.useSet, startAfter)
+        self.addReport("MRCE", strategyReturns, signals, [longAlpha, shortAlpha])
         
         return strategyReturns
     
