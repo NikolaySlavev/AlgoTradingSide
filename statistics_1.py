@@ -10,21 +10,48 @@ import warnings
 
 from statsmodels.tsa.stattools import adfuller
 from statsmodels.tsa.stattools import kpss
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 
 
 # filter some warnings
 warnings.filterwarnings('ignore')
 
 
+def differencingPlots(data):
+    figure, axis = plt.subplots(nrows = 3, ncols = 3, figsize = (10, 7))
+    
+    axis[0,0].plot(data)
+    plot_acf(data.dropna(), ax = axis[0,1])
+    plot_pacf(data.dropna(), ax = axis[0,2])
+    adf_test(data)
+    kpss_test(data)
+    
+    data1 = data.diff().dropna()
+    axis[1,0].plot(data1)
+    plot_acf(data1, ax = axis[1,1])
+    plot_pacf(data1, ax = axis[1,2])
+    adf_test(data1)
+    kpss_test(data1)
+    
+    data2 = data.diff().diff().dropna()
+    axis[2,0].plot(data2)
+    plot_acf(data2, ax = axis[2,1])
+    plot_pacf(data2, ax = axis[2,2])
+    adf_test(data2)
+    kpss_test(data2)
+    
+    plt.show()
+
 # ADF test
 def adf_test(data):
     print ('Results of Dickey-Fuller Test:')
-    dftest = adfuller(data, autolag='AIC')
+    dftest = adfuller(data, autolag = 'AIC')
     dfoutput = pd.Series(dftest[0:4], index=['Test Statistic','p-value','#Lags Used','Number of Observations Used'])
     for key,value in dftest[4].items():
         dfoutput['Critical Value (%s)'%key] = value
         
-    print (dfoutput)
+    print("(ADF) Stationary") if dfoutput["p-value"] < 0.05 else print("(ADF) NOT Stationary")
+    #print (dfoutput)
 
 # KPSS test
 def kpss_test(data):
@@ -33,8 +60,9 @@ def kpss_test(data):
     kpss_output = pd.Series(kpsstest[0:3], index=['Test Statistic','p-value','#Lags Used'])
     for key,value in kpsstest[3].items():
         kpss_output['Critical Value (%s)'%key] = value
-        
-    print (kpss_output) 
+            
+    print("(KPSS) Stationary") if kpss_output["p-value"] > 0.05 else print("(KPSS) NOT Stationary")
+    #print (kpss_output)
 
 def getTradingPerYear(returnsType):
     if returnsType == "1D":

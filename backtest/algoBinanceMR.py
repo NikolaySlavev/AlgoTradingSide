@@ -1,21 +1,11 @@
-import pandas as pd
-import sqlalchemy
-from binance.client import Client
-from config import bin_api_key, bin_api_secret
-
-import strategies
-import statistics_1
-
-import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
-import numpy as np
-
-from bayes_opt import BayesianOptimization
-import time
+from imports import *
+from strategies.MeanReversion import MeanReversion
+from timeSeries.TimeSeries import TimeSeries
+from timeSeries.BinanceTimeSeries import BinanceTimeSeries
+from statistics_1 import *
 
 
 if __name__ == "__main__":
-    client = Client(bin_api_key, bin_api_secret)
     cash_start = 100
     numSplits = 10
     symbol = "BTCUSDT"
@@ -23,13 +13,14 @@ if __name__ == "__main__":
     interval = Client.KLINE_INTERVAL_1HOUR
     
     start_time = time.time()
-    timeSeries = strategies.BinanceTimeSeries(client = client, dataPair = symbol, howLong = days, interval = interval, numSplits = numSplits)
+    client = Client(bin_api_key, bin_api_secret)
+    timeSeries = BinanceTimeSeries(client = client, dataPair = symbol, howLong = days, interval = interval, numSplits = numSplits)
     
     for i in range(len(timeSeries.dfTestList) - 1):
         timeSeries.dfTrainTest.append(timeSeries.dfTestList[i])
     
     # MEAN REVERSION
-    mr = strategies.MeanReversion(timeSeries, cash_start)
+    mr = MeanReversion(timeSeries, cash_start)
     
     max = len(timeSeries.dfTrain) * 0.95
     
@@ -98,7 +89,7 @@ if __name__ == "__main__":
     
     figure, axis = plt.subplots(nrows = numSplits, ncols = 1, figsize = (7, 7))
     for i in range(numSplits):
-        strategies.SyntheticTimeSeries.plot([("Buy and Hold", buy_hold_test_all[i]), 
+        TimeSeries.plot([("Buy and Hold", buy_hold_test_all[i]), 
                                                     ("MR SMA [" + str(best_mr_sma_period) + "]" , mr_sma_test_all[i]),
                                                     ("MR EMA [" + str(best_mr_ema_alpha) + "]" , mr_ema_test_all[i]),
                                                     ("MR CROSS SMA [" + str(best_mr_cross_sma_long_period) + ", " + str(best_mr_cross_sma_short_period) + "]" , mr_cross_sma_test_all[i]),

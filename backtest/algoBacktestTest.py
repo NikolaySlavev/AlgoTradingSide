@@ -1,29 +1,19 @@
-import pandas as pd
-from binance.client import Client
-from binance import BinanceSocketManager
-from config import bin_api_key, bin_api_secret
+from imports import *
+from strategies.MeanReversion import TrendFollowing
+from timeSeries.BinanceTimeSeries import BinanceTimeSeries
+from timeSeries.TimeSeries import TimeSeries
 
-from globals import *
-import strategies
-import statistics_1
-
-import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
-import numpy as np
-
-import time
-import numpy as np
 
 if __name__ == "__main__":
     cash_start = 10
         
     client = Client(bin_api_key, bin_api_secret)
-    timeSeries = strategies.BinanceTimeSeries(client = client, dataPair = "BTCUSDT", howLong = 900, interval = Client.KLINE_INTERVAL_1HOUR, numSplits = 2)
+    timeSeries = BinanceTimeSeries(client = client, dataPair = "BTCUSDT", howLong = 900, interval = Client.KLINE_INTERVAL_1HOUR, numSplits = 2)
     timeSeries.set_current_train_test_data(1)
     timeSeries.reportEnabled = True
     
     # TREND FOLLOWING
-    tf = strategies.TrendFollowing(timeSeries, cash_start)
+    tf = TrendFollowing(timeSeries, cash_start)
     best_tf_sma_period = 570
     best_tf_ema_alpha = 0.04301
     best_tf_cross_sma_long_period = 898.94
@@ -49,13 +39,13 @@ if __name__ == "__main__":
     
     figure, axis = plt.subplots(nrows = 2, ncols = 1, figsize = (7, 7))
     
-    strategies.SyntheticTimeSeries.plot([("Buy and Hold", buy_hold_test), 
-                                        ("TF SMA [" + str(best_tf_sma_period) + "]" , tf_sma_test),
-                                        ("TF EMA [" + str(best_tf_ema_alpha) + "]" , tf_ema_test),
-                                        ("TF CROSS SMA [" + str(best_tf_cross_sma_long_period) + ", " + str(best_tf_cross_sma_short_period) + "]" , tf_cross_sma_test),
-                                        ("TF CROSS EMA [" + str(best_tf_cross_ema_long_alpha) + ", " + str(best_tf_cross_ema_short_alpha) + "]" , tf_cross_ema_test),
-                                        ("TF BB RSI [" + str(best_tf_bb_period) + "]", tf_bb_rsi_test)],
-                                        "Strategies Test Set", "Days", "Cash", axis = axis[0])
+    TimeSeries.plot([("Buy and Hold", buy_hold_test), 
+                                    ("TF SMA [" + str(best_tf_sma_period) + "]" , tf_sma_test),
+                                    ("TF EMA [" + str(best_tf_ema_alpha) + "]" , tf_ema_test),
+                                    ("TF CROSS SMA [" + str(best_tf_cross_sma_long_period) + ", " + str(best_tf_cross_sma_short_period) + "]" , tf_cross_sma_test),
+                                    ("TF CROSS EMA [" + str(best_tf_cross_ema_long_alpha) + ", " + str(best_tf_cross_ema_short_alpha) + "]" , tf_cross_ema_test),
+                                    ("TF BB RSI [" + str(best_tf_bb_period) + "]", tf_bb_rsi_test)],
+                                    "Strategies Test Set", "Days", "Cash", axis = axis[0])
     axis[0].xaxis.set_major_locator(ticker.MaxNLocator(5))
     
     print("Buy Hold test is", buy_hold_test[-1])
