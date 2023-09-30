@@ -2,8 +2,7 @@ import pandas as pd
 import datetime
 import sqlalchemy
 from binance.client import Client
-from binance import BinanceSocketManager
-from config import bin_api_key, bin_api_secret
+import configparser
 
 
 def getHistoricalData(client, dataPair, howLong, interval):
@@ -32,7 +31,11 @@ def getHistoricalData(client, dataPair, howLong, interval):
 
 if __name__ == "__main__":
     dataPair = "BTCUSDT"
-    client = Client(bin_api_key, bin_api_secret)
+    
+    config = configparser.ConfigParser()
+    config.read("config/prod.env")
+    
+    client = Client(config["BINANCE"]["bin_api_key"], config["BINANCE"]["bin_api_secret"])
     engine = sqlalchemy.create_engine("sqlite:///" + dataPair + "stream.db")
 
     df = getHistoricalData(client, dataPair, 30)

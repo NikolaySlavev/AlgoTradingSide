@@ -6,8 +6,10 @@ from timeSeries.TimeSeries import TimeSeries
 
 if __name__ == "__main__":
     cash_start = 10
-        
-    client = Client(bin_api_key, bin_api_secret)
+    
+    config = configparser.ConfigParser()
+    config.read("config/prod.env")
+    client = Client(config["BINANCE"]["bin_api_key"], config["BINANCE"]["bin_api_secret"])
     timeSeries = BinanceTimeSeries(client = client, dataPair = "BTCUSDT", howLong = 900, interval = Client.KLINE_INTERVAL_1HOUR, numSplits = 2)
     timeSeries.set_current_train_test_data(1)
     timeSeries.reportEnabled = True

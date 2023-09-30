@@ -3,7 +3,7 @@ import sqlalchemy
 import asyncio
 from binance.client import Client
 from binance import BinanceSocketManager
-from config import bin_api_key, bin_api_secret
+import configparser
 
 def createFrame(msg):
     df = pd.DataFrame([msg])
@@ -41,7 +41,10 @@ async def main(socket):
     await socket.__aexit__(None, None, None)
 
 if __name__ == "__main__":
-    client = Client(bin_api_key, bin_api_secret)
+    config = configparser.ConfigParser()
+    config.read("config/prod.env")
+    
+    client = Client(config["BINANCE"]["bin_api_key"], config["BINANCE"]["bin_api_secret"])
     bsm = BinanceSocketManager(client)
 
     socket = bsm.trade_socket("BTCUSDT")

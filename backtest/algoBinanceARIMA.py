@@ -6,7 +6,9 @@ from statistics_1 import *
 
 
 if __name__ == "__main__":
-    client = Client(bin_api_key, bin_api_secret)
+    config = configparser.ConfigParser()
+    config.read("config/prod.env")
+    client = Client(config["BINANCE"]["bin_api_key"], config["BINANCE"]["bin_api_secret"])
     cash_start = 100
     numSplits = 2
     symbol = "BTCUSDT"

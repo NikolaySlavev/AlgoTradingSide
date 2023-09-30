@@ -45,7 +45,9 @@ def getExecuteStrategyReturns(client, ordersPath):
     
 
 if __name__ == "__main__":
-    client = Client(bin_api_key, bin_api_secret)
+    config = configparser.ConfigParser()
+    config.read("config/prod.env")
+    client = Client(config["BINANCE"]["bin_api_key"], config["BINANCE"]["bin_api_secret"])
     tfPrices, tfBuyHold, tfOrdersReturns = getExecuteStrategyReturns(client, "tfOrders.csv")
     mrPrices, mrBuyHold, mrOrdersReturns = getExecuteStrategyReturns(client, "mrOrders.csv")
     figure, axis = plt.subplots(nrows = 2, ncols = 2, figsize = (10, 7))

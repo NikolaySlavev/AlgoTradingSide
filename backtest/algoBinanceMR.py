@@ -19,7 +19,7 @@ if __name__ == "__main__":
     days = 600
     interval = Client.KLINE_INTERVAL_1MINUTE
     
-    client = Client(bin_api_key, bin_api_secret)
+    client = Client(config["BINANCE"]["bin_api_key"], config["BINANCE"]["bin_api_secret"])
     timeSeries = BinanceTimeSeries.fromHowLong(client = client, config = config, dataPair = symbol, howLong = days, interval = interval, numSplits = numSplits)
     
     print("--- %s seconds ---\n" % (time.time() - start_time))

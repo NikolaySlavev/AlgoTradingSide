@@ -25,7 +25,7 @@ def main(interval, pairName, strategyName):
     config.read("config/prod.env")
     
     try:
-        client = Client(bin_api_key, bin_api_secret)
+        client = Client(config["BINANCE"]["bin_api_key"], config["BINANCE"]["bin_api_secret"])
         timeSeries = BinanceTimeSeries.fromHowLong(client = client, config = config, dataPair = pairName, howLong = 600, interval = interval, numSplits = 0)
         dfAll = timeSeries.df.reset_index()
         dfAll = dfAll[['dateTime', 'closeTime', 'open', 'close', 'high', 'low', 'volume']]

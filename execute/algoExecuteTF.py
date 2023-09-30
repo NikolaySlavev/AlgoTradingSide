@@ -9,7 +9,7 @@ def main(strategyName, bestTfParam):
     config.read("config/prod.env")
     
     try:
-        proxies = { 'https' : "http://" + str(username) + ":" + str(password) + "@" + str(proxy) + ":" + str(port)} 
+        proxies = { 'https' : "http://" + str(config["PROXY"]["username"]) + ":" + str(config["PROXY"]["password"]) + "@" + str(config["PROXY"]["proxy"]) + ":" + str(config["PROXY"]["port"])}
         lastOrderInfo = getLastTransaction(config)
                         
         btcRem = lastOrderInfo.longInventory % BASESTEPSIZE
@@ -18,7 +18,7 @@ def main(strategyName, bestTfParam):
         untilThisDate = datetime.datetime.now()
         sinceThisDate = untilThisDate - datetime.timedelta(days = 24)
         
-        client = Client(bin_api_key, bin_api_secret, requests_params = {"proxies": proxies})
+        client = Client(config["BINANCE"]["bin_api_key"], config["BINANCE"]["bin_api_secret"], requests_params = {"proxies": proxies})
         info = client.get_symbol_info(lastOrderInfo.pairName)
         
         df = BinanceTimeSeries.generateData(client = client, config = config, dataPair = lastOrderInfo.pairName, sinceThisDate = sinceThisDate, untilThisDate = untilThisDate, interval = Client.KLINE_INTERVAL_1HOUR)

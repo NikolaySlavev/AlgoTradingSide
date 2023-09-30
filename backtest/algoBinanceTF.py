@@ -13,7 +13,7 @@ if __name__ == "__main__":
     config = configparser.ConfigParser()
     config.read("config/prod.env")
            
-    client = Client(bin_api_key, bin_api_secret)
+    client = Client(config["BINANCE"]["bin_api_key"], config["BINANCE"]["bin_api_secret"])
     cash_start = 100
     numSplits = 10
     
