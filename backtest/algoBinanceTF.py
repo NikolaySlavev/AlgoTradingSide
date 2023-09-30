@@ -6,16 +6,19 @@ from timeSeries.BinanceTimeSeries import BinanceTimeSeries
 from statistics_1 import *
 
 
-#if __name__ == "__main__":
-def main():
+if __name__ == "__main__":
+#def main():
     start_time = time.time()
+    
+    config = configparser.ConfigParser()
+    config.read("config/prod.env")
            
     client = Client(bin_api_key, bin_api_secret)
     cash_start = 100
     numSplits = 10
     
     #timeSeries = strategies.BinanceTimeSeries.fromHowLong(client = client, dataPair = "BTCUSDT", howLong = 600, interval = Client.KLINE_INTERVAL_5MINUTE, numSplits = numSplits)
-    timeSeries = BinanceTimeSeries.fromHowLong(client = client, dataPair = "BTCUSDT", howLong = 600, interval = Client.KLINE_INTERVAL_1MINUTE, numSplits = numSplits)
+    timeSeries = BinanceTimeSeries.fromHowLong(client = client, config = config, dataPair = "BTCUSDT", howLong = 600, interval = Client.KLINE_INTERVAL_1MINUTE, numSplits = numSplits, onlyBinance = False)
     #untilThisDate = datetime.datetime.now() - datetime.timedelta(days = 30)
     #sinceThisDate = untilThisDate - datetime.timedelta(days = 600 + 30)
     #timeSeries = BinanceTimeSeries(client = client, dataPair = "BTCUSDT", sinceThisDate = sinceThisDate, untilThisDate = untilThisDate, interval = Client.KLINE_INTERVAL_15MINUTE, numSplits = numSplits)
@@ -125,7 +128,7 @@ def main():
             
 #    plt.show()
     
-#exit()
+exit()
 if __name__ == "__main__":
     cProfile.run('main()')
     exit()

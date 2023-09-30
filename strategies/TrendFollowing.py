@@ -20,10 +20,8 @@ class TrendFollowing(Strategy):
     def signal(price, ma):
         if price > ma:
             return BUY
-        elif price < ma:
-            return SELL
         else:
-            return HOLD
+            return SELL
     
     @numba.jit((numba.float64[:], numba.float64[:], numba.int64), nopython = True, nogil = True)
     def getSignals(prices, mas, startAfter):
@@ -81,7 +79,7 @@ class TrendFollowing(Strategy):
         return strategyReturns
     
     def TF_simple_exec(prices, period):
-        movingAverages = Strategy.getSimpleMovingAverage(prices, period)
+        movingAverages = Strategy.getSimpleMovingAverageNp(prices, period)
         return TrendFollowing.signal(prices[-1], movingAverages[-1])
     
     def TF_exponential_bayes(self, alpha):

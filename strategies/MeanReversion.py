@@ -19,10 +19,19 @@ class MeanReversion(Strategy):
     def signal(price, ma):
         if ma > price: 
             return BUY
-        elif ma < price: 
+        else: 
             return SELL
-        else:
-            return HOLD
+        
+    @numba.jit((numba.float64[:], numba.float64[:], numba.int64), nopython = True, nogil = True)
+    def getSignals(prices, mas, startAfter):
+        signals = np.zeros(np.shape(prices))
+        for i in range(startAfter, len(prices)):
+            if mas[i] > prices[i]:
+                signals[i] = BUY
+            else:
+                signals[i] =  SELL
+                
+        return signals
     
     def signal_crossover(ma_long, ma_short):
         if ma_short < ma_long:
@@ -42,8 +51,8 @@ class MeanReversion(Strategy):
     
     def MR_simple_bayes(self, period):
         valuesOpt = []
-        for i in range(len(self.timeSeries.dfTrainList)):
-            self.timeSeries.set_current_train_test_data(i)
+        for i in range(len(self.timeSeries.dataTrainList)):
+            self.timeSeries.setCurrentTrainDataNp(i)
             self.setUseSet(TRAIN)
             valuesOpt.append(self.MR_simple(period)[-1])
                         
@@ -52,7 +61,7 @@ class MeanReversion(Strategy):
     def MR_exponential_bayes(self, alpha):
         valuesOpt = []
         for i in range(len(self.timeSeries.dfTrainList)):
-            self.timeSeries.set_current_train_test_data(i)
+            self.timeSeries.setCurrentTrainDataNp(i)
             self.setUseSet(TRAIN)
             valuesOpt.append(self.MR_exponential(alpha)[-1])
                         
@@ -87,49 +96,31 @@ class MeanReversion(Strategy):
     
     def MR_simple(self, period):
         period = int(period)
-        prices = Strategy.getPrices(self.timeSeries, self.useSet)
+        prices = Strategy.getPricesNp(self.timeSeries, self.useSet)
         startAfter = Strategy.getStartAfter(self.timeSeries, self.useSet)
-        moving_averages = Strategy.get_simple_moving_average(prices, period)
-        
-        signals = np.zeros(np.shape(prices))
-        for i in range(0, len(prices)):
-            if startAfter > i:
-                signals[i] = HOLD
-                continue
-            
-            signals[i] = MeanReversion.signal(prices[i], moving_averages[i])
-            
+        movingAverages = Strategy.getSimpleMovingAverageNp(prices, period)
+        signals = MeanReversion.getSignals(prices, movingAverages, startAfter)
         strategyReturns = Strategy.getStrategyReturns(prices, signals, self.cashStart, self.useSet, startAfter)
         if self.useSet == TEST:
-            signals = signals[startAfter:] 
+            signals = signals[startAfter:]
                 
         self.addReport("MRS", strategyReturns, signals, period)
-        
         return strategyReturns
     
     def MR_exponential_exec(prices, alpha):
-        moving_averages = Strategy.get_exponential_moving_average(prices, alpha)
-        return MeanReversion.signal(prices[-1], moving_averages[-1])
+        movingAverages = Strategy.getExponentialMovingAverageNp(prices, alpha)
+        return MeanReversion.signal(prices[-1], movingAverages[-1])
     
     def MR_exponential(self, alpha):
-        prices = Strategy.getPrices(self.timeSeries, self.useSet)
+        prices = Strategy.getPricesNp(self.timeSeries, self.useSet)
         startAfter = Strategy.getStartAfter(self.timeSeries, self.useSet)
-        moving_averages = Strategy.get_exponential_moving_average(prices, alpha)
-        
-        signals = np.zeros(np.shape(prices))
-        for i in range(0, len(prices)):
-            if startAfter > i:
-                signals[i] = HOLD
-                continue
-            
-            signals[i] = MeanReversion.signal(prices[i], moving_averages[i])
-            
+        movingAverages = Strategy.getExponentialMovingAverageNp(prices, alpha)
+        signals = MeanReversion.getSignals(prices, movingAverages, startAfter)
         strategyReturns = Strategy.getStrategyReturns(prices, signals, self.cashStart, self.useSet, startAfter)
         if self.useSet == TEST:
             signals = signals[startAfter:] 
         
         self.addReport("MRE", strategyReturns, signals, alpha)
-        
         return strategyReturns
         
     def MR_bb_rsi(self, bb_period, bb_std, rsi_period):
