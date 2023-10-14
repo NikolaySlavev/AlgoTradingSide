@@ -8,6 +8,7 @@ class Strategy():
     def __init__(self):
         self.useSet = TRAIN
         self.timeSeries = None
+        self.warmupSize = 0
     
     # def rollingWindow(prices, period):
     #     pad = np.ones(len(prices.shape), dtype = np.int32)
@@ -256,30 +257,27 @@ class Strategy():
         return returns
         #return [a * b for a, b in zip(w, prices)] + cash
     
-    def getStrategyReturns(prices, signals, cashStart, useSet, startAfter):
+    def getStrategyReturns(prices, signals, cashStart):
         #w = np.zeros(np.shape(prices))
         #cash = np.zeros(np.shape(prices))
         #lastSignal = HOLD
         #cash[0], w[0] = Strategy.position(prices[0], signals[0], lastSignal, cashStart, 0)        
         cash, w = Strategy.positions(prices, signals, cashStart)
         strategyReturns = Strategy.computeReturns(w, prices, cash)
-        if useSet == TEST:
-            strategyReturns = strategyReturns[startAfter:]
-        
         return strategyReturns
     
     def setUseSet(self, useSet):
         self.useSet = useSet
-    
+        
     def getPricesNp(timeSeries, useSet):
-        if useSet == TEST:
-            return timeSeries.getPricesNp(useSet = TRAINTEST)
+        #if useSet == TEST:
+            #return timeSeries.getPricesNp(useSet = TRAINTEST)
 
         return timeSeries.getPricesNp(useSet = useSet)
     
     def getPrices(timeSeries, useSet):
-        if useSet == TEST:
-            return timeSeries.getPrices(useSet = TRAINTEST)
+        #if useSet == TEST:
+            #return timeSeries.getPrices(useSet = TRAINTEST)
 
         return timeSeries.getPrices(useSet = useSet)
         

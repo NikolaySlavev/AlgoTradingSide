@@ -6,7 +6,6 @@ from sqlalchemy import create_engine
 from datetime import datetime
 import traceback
 
-from config import *
 from globals import *
 from timeSeries.BinanceTimeSeries import BinanceTimeSeries
 from execute.algoExecute import *

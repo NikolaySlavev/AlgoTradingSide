@@ -28,7 +28,6 @@ from bayes_opt import BayesianOptimization
 import numba
 #from numba import jit, float64, int64, string
 
-from config import *
 from globals import *
 
 # filter some warnings

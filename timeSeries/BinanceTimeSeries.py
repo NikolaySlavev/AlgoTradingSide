@@ -1,5 +1,6 @@
 from imports import *
 from timeSeries.TimeSeries import TimeSeries
+from timeSeries.SingleTimeSeries import SingleTimeSeries
 
 import sshtunnel
 import MySQLdb
@@ -8,7 +9,7 @@ import MySQLdb
 renameDbData = {"open_time": "dateTime", "close_time": "closeTime" , "open_price": "open", "close_price": "close", "high_price": "high", "low_price": "low"}
 
 class BinanceTimeSeries(TimeSeries):
-    def __init__(self, client, config, dataPair, sinceThisDate, untilThisDate, interval, numSplits, onlyBinance = False):
+    def __init__(self, client, config, dataPair, sinceThisDate, untilThisDate, interval, numSplits, onlyBinance = False, splitType = TimeSeriesSplitTypes.NORMAL, initialWarmupData = None):
         super(BinanceTimeSeries, self).__init__()
         
         if onlyBinance:
@@ -22,42 +23,89 @@ class BinanceTimeSeries(TimeSeries):
             self.dfDb.sort_index(inplace = True)
             lastPresentCloseDate = self.dfDb["closeTime"].iloc[-1]
             self.dfBinance = BinanceTimeSeries.generateData(client, dataPair, lastPresentCloseDate, untilThisDate, interval)
-            self.df = pd.concat([self.dfDb,self.dfBinance])
+            self.df = pd.concat([self.dfDb, self.dfBinance])
         
         self.df[RETURN] = self.getReturns(useSet = ALL)
         self.dataFullNp = TimeSeries.dfToNp(self.df)
         self.columnsNp = TimeSeries.dfColumnsToNp(self.df)
         
-        if numSplits == 0:
-            self.dataTrainList.append(self.dataFullNp)
-            self.dataTestList.append(self.dataFullNp)
-            self.dataTrainTestList.append(self.dataFullNp)
-            self.setCurrentTrainTestDataNp(0)
-        elif numSplits == 1:
-            cut = int(len(self.df) * 0.7)
-            self.dataTrainList.append(self.dataFullNp[:cut])
-            self.dataTestList.append(self.dataFullNp[cut:])
-            self.dataTrainTestList.append(np.concatenate([self.dataFullNp[:cut], self.dataFullNp[cut:]]))
-            self.setCurrentTrainTestDataNp(0)
+        if splitType == TimeSeriesSplitTypes.SKLEARN:
+            self.singleTimeSeriesList = BinanceTimeSeries.getSklearnSplit(self.df, self.dataFullNp, initialWarmupData, numSplits)
+        elif splitType == TimeSeriesSplitTypes.NORMAL:
+             self.singleTimeSeriesList= BinanceTimeSeries.getNormalSplit(self.dataFullNp, initialWarmupData, numSplits)
+        elif splitType == TimeSeriesSplitTypes.NONE:
+            self.singleTimeSeriesList = BinanceTimeSeries.getNoneSplit(self.dataFullNp)
         else:
-            self.tss = TimeSeriesSplit(n_splits = numSplits)
-            for train_index, test_index in self.tss.split(self.df):
-                self.dfTrainList.append(self.df.iloc[train_index, :])
-                self.dfTestList.append(self.df.iloc[test_index, :])
-                # change it!!!
-                self.dataTrainList.append(self.dataFullNp[train_index])
-                self.dataTestList.append(self.dataFullNp[test_index])
-                self.dataTrainTestList.append(np.concatenate([self.dataFullNp[train_index], self.dataFullNp[test_index]]))
-                
-            self.setCurrentTrainTestData(0)
-            self.setCurrentTrainTestDataNp(0)
+            raise Exception(f"Invalid splitType {splitType}")
 
+        self.setCurrentSingleTimeSeries(0)
+            
     @classmethod
-    def fromHowLong(cls, client, config, dataPair, howLong, interval, numSplits, onlyBinance = False):
+    def fromHowLong(cls, client, config, dataPair, howLong, interval, numSplits, onlyBinance = False, splitType = TimeSeriesSplitTypes.NORMAL, initialWarmupData = None):
         untilThisDate = datetime.datetime.now(datetime.timezone.utc)
         sinceThisDate = untilThisDate - datetime.timedelta(days = howLong)
-        return cls(client, config, dataPair, sinceThisDate, untilThisDate, interval, numSplits, onlyBinance)
+        return cls(client, config, dataPair, sinceThisDate, untilThisDate, interval, numSplits, onlyBinance, splitType, initialWarmupData)
         
+    def getCustomSplit(df, dataFullNp, customSplits: dict):
+        # FINISH IT
+        dataTrainList = []
+        dataTestList = []
+        dataTrainTestList = []
+        
+        cut = int(len(df) * 0.7)
+        dataTrainList.append(dataFullNp[:cut])
+        dataTestList.append(dataFullNp[cut:])
+        dataTrainTestList.append(np.concatenate([dataFullNp[:cut], dataFullNp[cut:]]))
+        
+    def getNoneSplit(dataFullNp):
+        return [SingleTimeSeries(dataFullNp = dataFullNp, 
+                                 dataTrainNp = dataFullNp, 
+                                 dataTestNp = dataFullNp, 
+                                 dataTrainTestNp = dataFullNp, 
+                                 dataTrainWithWarmupNp = dataFullNp,
+                                 warmupTrainSize = len(dataFullNp),
+                                 warmupTestSize = len(dataFullNp))]
+    
+    def getNormalSplit(dataFullNp, initialWarmupData, numSplits):
+        singleTimeSeriesList = []
+        splitSize = len(dataFullNp) // numSplits
+        for i in range(0, numSplits - 1):
+            dataTrainNp = dataFullNp[i * splitSize : (i + 1) * splitSize]
+            dataTestNp = dataFullNp[(i + 1) * splitSize : (i + 2) * splitSize]
+            warmupDf = initialWarmupData if i == 0 else singleTimeSeriesList[-1].dataTrainNp
+            singleTimeSeries = SingleTimeSeries(dataFullNp = dataFullNp,
+                                                dataTrainNp = dataTrainNp,
+                                                dataTestNp = dataTestNp,
+                                                dataTrainTestNp = np.concatenate([dataTrainNp, dataTestNp]),
+                                                dataTrainWithWarmupNp = np.concatenate([warmupDf, dataTrainNp]),
+                                                warmupTrainSize = len(warmupDf),
+                                                warmupTestSize = len(dataTrainNp))
+            singleTimeSeriesList.append(singleTimeSeries)
+        
+        # len(dataFullNp) / numSplits might not be exact so we need to take the matrix until the end and the size of the test set is >= of each size of the train set
+        dataLastTestNp = dataFullNp[(numSplits - 1) * splitSize :]
+        singleTimeSeriesList[-1].dataTestNp = dataLastTestNp
+        singleTimeSeriesList[-1].dataTrainTestNp = np.concatenate([singleTimeSeriesList[-1].dataTrainNp, dataLastTestNp])
+        
+        return singleTimeSeriesList
+        
+    def getSklearnSplit(df, dataFullNp, initialWarmupData, numSplits):
+        singleTimeSeriesList = []        
+        # if numSplits = 10, sklearn splits the data into 10 training sets (i.e. divides len(df) by 10 + 1)
+        tss = TimeSeriesSplit(n_splits = numSplits - 1)
+        # try to pass the np matrix directly (dataFullNp) instead of the df
+        for train_index, test_index in tss.split(df):
+            singleTimeSeries = SingleTimeSeries(dataFullNp = dataFullNp, 
+                                                dataTrainNp = dataFullNp[train_index],
+                                                dataTestNp = dataFullNp[test_index], 
+                                                dataTrainTestNp = np.concatenate([dataFullNp[train_index], dataFullNp[test_index]]),
+                                                dataTrainWithWarmupNp = np.concatenate([initialWarmupData, dataFullNp[train_index]]),
+                                                warmupTrainSize = len(initialWarmupData),
+                                                warmupTestSize = len(dataFullNp[train_index]))
+            singleTimeSeriesList.append(singleTimeSeries)
+            
+        return singleTimeSeriesList
+
     def generateDbData(config, sinceThisDate, untilThisDate, interval):
         with sshtunnel.SSHTunnelForwarder(
         (config["MYSQL"]["ssh_host"]), 
@@ -87,10 +135,9 @@ class BinanceTimeSeries(TimeSeries):
         df = pd.DataFrame(candle, columns=['dateTime', 'open', 'high', 'low', 'close', 'volume', 'closeTime', 'quoteAssetVolume', 'numberOfTrades', 'takerBuyBaseVol', 'takerBuyQuoteVol', 'ignore'])
 
         # as timestamp is returned in ms, let us convert this back to proper timestamps.
-        dateTimeFormat = "%d-%m-%y %H:%M:%S"
-        df.dateTime = pd.to_datetime(df.dateTime, unit='ms')#.dt.strftime(dateTimeFormat)
-        df.closeTime = pd.to_datetime(df.closeTime, unit='ms')
-        df.set_index('dateTime', inplace = True)
+        df.dateTime = pd.to_datetime(df.dateTime, unit = "ms")
+        df.closeTime = pd.to_datetime(df.closeTime, unit = "ms")
+        df.set_index("dateTime", inplace = True)
         df.sort_index(inplace = True)
         
         df.open = df.open.astype(float)
@@ -102,5 +149,5 @@ class BinanceTimeSeries(TimeSeries):
         df[PRICE] = df["close"]
 
         # Get rid of columns we do not need
-        df = df.drop(['quoteAssetVolume', 'numberOfTrades', 'takerBuyBaseVol','takerBuyQuoteVol', 'ignore'], axis=1)
+        df = df.drop(["quoteAssetVolume", "numberOfTrades", "takerBuyBaseVol", "takerBuyQuoteVol", "ignore"], axis = 1)
         return df

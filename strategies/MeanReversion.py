@@ -8,13 +8,14 @@ from timeSeries.TimeSeries import TimeSeries
     Implemented both SMA and Bands+RSI
 """
 class MeanReversion(Strategy):
-    def __init__(self, timeSeries, cashStart):
+    def __init__(self, timeSeries, cashStart, warmupSize):
         if not isinstance(timeSeries, TimeSeries):
             return "Object needs to be an instance of SyntheticTimeSeries"
 
         super(MeanReversion, self).__init__()
         self.timeSeries = timeSeries
         self.cashStart = cashStart
+        self.warmupSize = warmupSize
     
     def signal(price, ma):
         if ma > price: 
@@ -22,10 +23,10 @@ class MeanReversion(Strategy):
         else: 
             return SELL
         
-    @numba.jit((numba.float64[:], numba.float64[:], numba.int64), nopython = True, nogil = True)
-    def getSignals(prices, mas, startAfter):
+    @numba.jit((numba.float64[:], numba.float64[:]), nopython = True, nogil = True)
+    def getSignals(prices, mas):
         signals = np.zeros(np.shape(prices))
-        for i in range(startAfter, len(prices)):
+        for i in range(len(prices)):
             if mas[i] > prices[i]:
                 signals[i] = BUY
             else:
@@ -51,8 +52,8 @@ class MeanReversion(Strategy):
     
     def MR_simple_bayes(self, period):
         valuesOpt = []
-        for i in range(len(self.timeSeries.dataTrainList)):
-            self.timeSeries.setCurrentTrainDataNp(i)
+        for i in range(len(self.timeSeries.singleTimeSeriesList)):
+            self.timeSeries.setCurrentSingleTimeSeries(i)
             self.setUseSet(TRAIN)
             valuesOpt.append(self.MR_simple(period)[-1])
                         
@@ -96,13 +97,13 @@ class MeanReversion(Strategy):
     
     def MR_simple(self, period):
         period = int(period)
-        prices = Strategy.getPricesNp(self.timeSeries, self.useSet)
-        startAfter = Strategy.getStartAfter(self.timeSeries, self.useSet)
-        movingAverages = Strategy.getSimpleMovingAverageNp(prices, period)
-        signals = MeanReversion.getSignals(prices, movingAverages, startAfter)
-        strategyReturns = Strategy.getStrategyReturns(prices, signals, self.cashStart, self.useSet, startAfter)
-        if self.useSet == TEST:
-            signals = signals[startAfter:]
+        pricesForMa = self.timeSeries.getPricesNp(self.useSet + WARMUP)
+        prices = self.timeSeries.getPricesNp(self.useSet)
+        startAfter = self.timeSeries.getWarmupSize(self.useSet)
+        movingAverages = Strategy.getSimpleMovingAverageNp(pricesForMa, period)
+        movingAverages = movingAverages[startAfter:]
+        signals = MeanReversion.getSignals(prices, movingAverages)
+        strategyReturns = Strategy.getStrategyReturns(prices, signals, self.cashStart)
                 
         self.addReport("MRS", strategyReturns, signals, period)
         return strategyReturns
@@ -115,7 +116,7 @@ class MeanReversion(Strategy):
         prices = Strategy.getPricesNp(self.timeSeries, self.useSet)
         startAfter = Strategy.getStartAfter(self.timeSeries, self.useSet)
         movingAverages = Strategy.getExponentialMovingAverageNp(prices, alpha)
-        signals = MeanReversion.getSignals(prices, movingAverages, startAfter)
+        signals = MeanReversion.getSignals(prices, movingAverages)
         strategyReturns = Strategy.getStrategyReturns(prices, signals, self.cashStart, self.useSet, startAfter)
         if self.useSet == TEST:
             signals = signals[startAfter:] 

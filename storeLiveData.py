@@ -11,6 +11,7 @@ def createFrame(msg):
     df.columns = ["symbol", "Time", "Price"]
     df.Price = df.Price.astype(float)
     df.Time = pd.to_datetime(df.Time, unit = "ms")
+    print(df)
     return df
 
 async def processError(socket, retry):
@@ -28,15 +29,21 @@ async def processError(socket, retry):
 async def main(socket):
     maxRetry = 5
     retry = 0
+    prevPrice = 0
     await socket.__aenter__()
     while True:
         msg = await socket.recv()
         if msg['e'] == 'error' and not await processError(socket, retry, maxRetry):
             break
         
+        # can change it so that it doesn't do anything for 0.01 changes
+        if msg["p"] == prevPrice:
+            print("Continue")
+            continue
+        
+        prevPrice = msg["p"]
         frame = createFrame(msg)
         frame.to_sql("BTCUSDT", engine, if_exists = "append", index = False)
-        print(msg)
     
     await socket.__aexit__(None, None, None)
 

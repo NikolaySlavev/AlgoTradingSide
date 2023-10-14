@@ -30,11 +30,9 @@ def getHistoricalData(client, dataPair, howLong, interval):
 
 
 if __name__ == "__main__":
-    dataPair = "BTCUSDT"
-    
+    dataPair = "BTCUSDT"    
     config = configparser.ConfigParser()
     config.read("config/prod.env")
-    
     client = Client(config["BINANCE"]["bin_api_key"], config["BINANCE"]["bin_api_secret"])
     engine = sqlalchemy.create_engine("sqlite:///" + dataPair + "stream.db")
 

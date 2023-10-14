@@ -7,7 +7,15 @@ ALL = "all"
 TRAIN = "train"
 TEST = "test"
 TRAINTEST = "trainTest"
+WARMUP = "warmup"
 PRICE = "price"
 RETURN = "return"
 DATETIME = "dateTime"
 SAMEORDERSTR = "Same order as last time"
+
+
+class TimeSeriesSplitTypes:
+    NORMAL = "Normal"
+    SKLEARN = "Sklearn"
+    CUSTOM = "Custom"
+    NONE = "None"

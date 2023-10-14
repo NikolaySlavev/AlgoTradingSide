@@ -14,13 +14,26 @@ if __name__ == "__main__":
     config.read("config/prod.env")
     
     cash_start = 100
-    numSplits = 10
+    numSplits = 4
     symbol = "BTCUSDT"
-    days = 600
+    days = 100
     interval = Client.KLINE_INTERVAL_1MINUTE
     
+    untilThisDate = datetime.datetime.now(datetime.timezone.utc)
+    sinceThisDate = untilThisDate - datetime.timedelta(days = days)
+    warmupSinceThisDate = sinceThisDate - datetime.timedelta(days = days // numSplits)
+    
     client = Client(config["BINANCE"]["bin_api_key"], config["BINANCE"]["bin_api_secret"])
-    timeSeries = BinanceTimeSeries.fromHowLong(client = client, config = config, dataPair = symbol, howLong = days, interval = interval, numSplits = numSplits)
+    initialWarmupData = BinanceTimeSeries(client = client, config = config, dataPair = symbol, sinceThisDate = warmupSinceThisDate, untilThisDate = sinceThisDate, interval = interval, numSplits = 0, splitType = TimeSeriesSplitTypes.NONE, initialWarmupData = None).singleTimeSeries.dataFullNp
+    timeSeries = BinanceTimeSeries(client = client, 
+                                   config = config, 
+                                   dataPair = symbol, 
+                                   sinceThisDate = sinceThisDate, 
+                                   untilThisDate = untilThisDate, 
+                                   interval = interval, 
+                                   numSplits = numSplits, 
+                                   splitType = TimeSeriesSplitTypes.SKLEARN,
+                                   initialWarmupData = initialWarmupData)
     
     print("--- %s seconds ---\n" % (time.time() - start_time))
     
@@ -31,14 +44,14 @@ if __name__ == "__main__":
     
     
     # MEAN REVERSION
-    mr = MeanReversion(timeSeries, cash_start)
+    mr = MeanReversion(timeSeries, cash_start, len(initialWarmupData))
     
-    max = len(timeSeries.dataTrainNp) * 0.95
+    max = len(initialWarmupData)
     
     ############### MEAN REVERSION ########################    
     pbounds = {'period': (2, max)}
     optimizerMRS = BayesianOptimization(f = mr.MR_simple_bayes, pbounds = pbounds, random_state = 1, verbose = 0, allow_duplicate_points = True)
-    optimizerMRS.maximize(init_points = 200, n_iter = 500)
+    optimizerMRS.maximize(init_points = 20, n_iter = 50)
     best_mr_sma_period = int(optimizerMRS.max["params"]["period"])
         
     # pbounds = {'alpha': (0.0001, 1)}
@@ -80,8 +93,8 @@ if __name__ == "__main__":
     mr_cross_ema_test_all = []
     mr_bb_rsi_test_all = []
     
-    for iSplit in range(numSplits):
-        mr.timeSeries.setCurrentTrainTestDataNp(iSplit)
+    for iSplit in range(numSplits - 1):
+        mr.timeSeries.setCurrentSingleTimeSeries(iSplit)
         mr.setUseSet("test")
         
         prices = mr.timeSeries.getPricesNp(useSet = "trainTest")
@@ -98,15 +111,15 @@ if __name__ == "__main__":
         # mr_cross_ema_test_all.append(mr.MR_crossover_exponential(best_mr_cross_ema_long_alpha, best_mr_cross_ema_short_alpha))
         # mr_bb_rsi_test_all.append(mr.MR_bb_rsi(best_mr_bb_period, best_mr_bb_std, best_mr_rsi_period))
     
-    figure, axis = plt.subplots(nrows = numSplits, ncols = 1, figsize = (7, 7))
-    for i in range(numSplits):
+    figure, axis = plt.subplots(nrows = numSplits - 1, ncols = 1, figsize = (7, 7))
+    for i in range(numSplits - 1):
         TimeSeries.plot([("Buy and Hold", buy_hold_test_all[i]), 
                                                     ("MR SMA [" + str(best_mr_sma_period) + "]" , mr_sma_test_all[i])],
                                                     # ("MR EMA [" + str(best_mr_ema_alpha) + "]" , mr_ema_test_all[i]),
                                                     # ("MR CROSS SMA [" + str(best_mr_cross_sma_long_period) + ", " + str(best_mr_cross_sma_short_period) + "]" , mr_cross_sma_test_all[i]),
                                                     # ("MR CROSS EMA [" + str(best_mr_cross_ema_long_alpha) + ", " + str(best_mr_cross_ema_short_alpha) + "]" , mr_cross_ema_test_all[i]),
                                                     # ("MR BB RSI [" + str(best_mr_bb_period) + "]", mr_bb_rsi_test_all[i])],
-                                                    "Strategies Test Set", "Days", "Cash", axis = axis[i])
+                                                    "Strategies Test Set", "Days", "Cash", axis = axis[i], xValues = pd.to_datetime(mr.timeSeries.getDates(useSet = "test")))
         axis[i].xaxis.set_major_locator(ticker.MaxNLocator(5))
         
         print("Buy Hold " + str(i) + " test is", buy_hold_test_all[i][-1])
