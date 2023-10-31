@@ -9,7 +9,7 @@ import MySQLdb
 renameDbData = {"open_time": "dateTime", "close_time": "closeTime" , "open_price": "open", "close_price": "close", "high_price": "high", "low_price": "low"}
 
 class BinanceTimeSeries(TimeSeries):
-    def __init__(self, client, config, dataPair, sinceThisDate, untilThisDate, interval, numSplits, onlyBinance = False, splitType = TimeSeriesSplitTypes.NORMAL, initialWarmupData = None):
+    def __init__(self, client, config, dataPair, sinceThisDate, untilThisDate, interval, numSplits, onlyBinance = False, splitType = TimeSeriesSplitTypes.NORMAL, initialWarmupData = []):
         super(BinanceTimeSeries, self).__init__()
         
         if onlyBinance:
@@ -34,7 +34,7 @@ class BinanceTimeSeries(TimeSeries):
         elif splitType == TimeSeriesSplitTypes.NORMAL:
              self.singleTimeSeriesList= BinanceTimeSeries.getNormalSplit(self.dataFullNp, initialWarmupData, numSplits)
         elif splitType == TimeSeriesSplitTypes.NONE:
-            self.singleTimeSeriesList = BinanceTimeSeries.getNoneSplit(self.dataFullNp)
+            self.singleTimeSeriesList = BinanceTimeSeries.getNoneSplit(self.dataFullNp, initialWarmupData)
         else:
             raise Exception(f"Invalid splitType {splitType}")
 
@@ -57,14 +57,14 @@ class BinanceTimeSeries(TimeSeries):
         dataTestList.append(dataFullNp[cut:])
         dataTrainTestList.append(np.concatenate([dataFullNp[:cut], dataFullNp[cut:]]))
         
-    def getNoneSplit(dataFullNp):
+    def getNoneSplit(dataFullNp, initialWarmupData):
         return [SingleTimeSeries(dataFullNp = dataFullNp, 
                                  dataTrainNp = dataFullNp, 
                                  dataTestNp = dataFullNp, 
-                                 dataTrainTestNp = dataFullNp, 
-                                 dataTrainWithWarmupNp = dataFullNp,
-                                 warmupTrainSize = len(dataFullNp),
-                                 warmupTestSize = len(dataFullNp))]
+                                 dataTrainTestNp = np.concatenate([initialWarmupData, dataFullNp]) if len(initialWarmupData) != 0 else dataFullNp,
+                                 dataTrainWithWarmupNp = np.concatenate([initialWarmupData, dataFullNp]) if len(initialWarmupData) != 0 else dataFullNp,
+                                 warmupTrainSize = len(initialWarmupData),
+                                 warmupTestSize = len(initialWarmupData))]
     
     def getNormalSplit(dataFullNp, initialWarmupData, numSplits):
         singleTimeSeriesList = []

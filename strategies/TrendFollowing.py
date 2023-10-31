@@ -9,13 +9,15 @@ from timeSeries.TimeSeries import TimeSeries
     The df object needs to be of type SyntheticTimeSeries in order to reuse the code above
 """
 class TrendFollowing(Strategy):
-    def __init__(self, timeSeries, cashStart):
+    def __init__(self, timeSeries, cashStart, warmupSize):
         if not isinstance(timeSeries, TimeSeries):
             return "Object needs to be an instance of TimeSeries"
 
         super(TrendFollowing, self).__init__()
         self.timeSeries = timeSeries
         self.cashStart = cashStart
+        self.warmupSize = warmupSize
+        self.best_sma_period = None
     
     def signal(price, ma):
         if price > ma:
@@ -23,10 +25,10 @@ class TrendFollowing(Strategy):
         else:
             return SELL
     
-    @numba.jit((numba.float64[:], numba.float64[:], numba.int64), nopython = True, nogil = True)
-    def getSignals(prices, mas, startAfter):
+    @numba.jit((numba.float64[:], numba.float64[:]), nopython = True, nogil = True)
+    def getSignals(prices, mas):
         signals = np.zeros(np.shape(prices))
-        for i in range(startAfter, len(prices)):
+        for i in range(len(prices)):
             if prices[i] > mas[i]:
                 signals[i] = BUY
             else:
@@ -66,15 +68,16 @@ class TrendFollowing(Strategy):
                 
     def TF_simple(self, period):
         period = int(period)
-        prices = Strategy.getPricesNp(self.timeSeries, self.useSet)
-        startAfter = Strategy.getStartAfter(self.timeSeries, self.useSet)
-        movingAverages = Strategy.getSimpleMovingAverageNp(prices, period)
-        signals = TrendFollowing.getSignals(prices, movingAverages, startAfter)
-        strategyReturns = Strategy.getStrategyReturns(prices, signals, self.cashStart, self.useSet, startAfter)
-        if self.useSet == TEST:
-            signals = signals[startAfter:]
+        pricesForMa = self.timeSeries.getPricesNp(self.useSet + WARMUP)
+        prices = self.timeSeries.getPricesNp(self.useSet)
+        startAfter = self.timeSeries.getWarmupSize(self.useSet)
+        movingAverages = Strategy.getSimpleMovingAverageNp(pricesForMa, period)
+        movingAverages = movingAverages[startAfter:]
+        signals = TrendFollowing.getSignals(prices, movingAverages)
+        strategyReturns = Strategy.getStrategyReturns(prices, signals, self.cashStart)
             
-        self.addReport("TFS", strategyReturns, signals, period)
+        if self.timeSeries.reportEnabled:
+            return {"dates": self.timeSeries.getDates(self.useSet), "prices": prices, "mas": movingAverages, "signals": signals, "returns": strategyReturns}
         
         return strategyReturns
     

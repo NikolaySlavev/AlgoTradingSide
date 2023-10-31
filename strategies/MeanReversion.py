@@ -16,6 +16,7 @@ class MeanReversion(Strategy):
         self.timeSeries = timeSeries
         self.cashStart = cashStart
         self.warmupSize = warmupSize
+        self.best_sma_period = None
     
     def signal(price, ma):
         if ma > price: 
@@ -104,8 +105,10 @@ class MeanReversion(Strategy):
         movingAverages = movingAverages[startAfter:]
         signals = MeanReversion.getSignals(prices, movingAverages)
         strategyReturns = Strategy.getStrategyReturns(prices, signals, self.cashStart)
-                
-        self.addReport("MRS", strategyReturns, signals, period)
+        
+        if self.timeSeries.reportEnabled:
+            return {"dates": self.timeSeries.getDates(self.useSet), "prices": prices, "mas": movingAverages, "signals": signals, "returns": strategyReturns}
+            
         return strategyReturns
     
     def MR_exponential_exec(prices, alpha):

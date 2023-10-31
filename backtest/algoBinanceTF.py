@@ -4,6 +4,7 @@ from strategies.TrendFollowing import TrendFollowing
 from timeSeries.TimeSeries import TimeSeries
 from timeSeries.BinanceTimeSeries import BinanceTimeSeries
 from statistics_1 import *
+from reporting.Reporting import writeReportCsv
 
 
 if __name__ == "__main__":
@@ -12,34 +13,40 @@ if __name__ == "__main__":
     
     config = configparser.ConfigParser()
     config.read("config/prod.env")
-           
-    client = Client(config["BINANCE"]["bin_api_key"], config["BINANCE"]["bin_api_secret"])
+    
     cash_start = 100
-    numSplits = 10
+    numSplits = 4
+    symbol = "BTCUSDT"
+    days = 100
+    interval = Client.KLINE_INTERVAL_1MINUTE
     
-    #timeSeries = strategies.BinanceTimeSeries.fromHowLong(client = client, dataPair = "BTCUSDT", howLong = 600, interval = Client.KLINE_INTERVAL_5MINUTE, numSplits = numSplits)
-    timeSeries = BinanceTimeSeries.fromHowLong(client = client, config = config, dataPair = "BTCUSDT", howLong = 600, interval = Client.KLINE_INTERVAL_1MINUTE, numSplits = numSplits, onlyBinance = False)
-    #untilThisDate = datetime.datetime.now() - datetime.timedelta(days = 30)
-    #sinceThisDate = untilThisDate - datetime.timedelta(days = 600 + 30)
-    #timeSeries = BinanceTimeSeries(client = client, dataPair = "BTCUSDT", sinceThisDate = sinceThisDate, untilThisDate = untilThisDate, interval = Client.KLINE_INTERVAL_15MINUTE, numSplits = numSplits)
-     
+    untilThisDate = datetime.datetime.now(datetime.timezone.utc)
+    sinceThisDate = untilThisDate - datetime.timedelta(days = days)
+    warmupSinceThisDate = sinceThisDate - datetime.timedelta(days = days // numSplits)
+    
+    client = Client(config["BINANCE"]["bin_api_key"], config["BINANCE"]["bin_api_secret"])
+    initialWarmupData = BinanceTimeSeries(client = client, config = config, dataPair = symbol, sinceThisDate = warmupSinceThisDate, untilThisDate = sinceThisDate, interval = interval, numSplits = 0, splitType = TimeSeriesSplitTypes.NONE, initialWarmupData = []).singleTimeSeries.dataFullNp
+    timeSeries = BinanceTimeSeries(client = client, 
+                                   config = config, 
+                                   dataPair = symbol, 
+                                   sinceThisDate = sinceThisDate, 
+                                   untilThisDate = untilThisDate, 
+                                   interval = interval, 
+                                   numSplits = numSplits, 
+                                   splitType = TimeSeriesSplitTypes.NORMAL,
+                                   initialWarmupData = initialWarmupData)
+           
     print("--- %s seconds ---\n" % (time.time() - start_time))
-        
-    for i in range(len(timeSeries.dataTestList) - 1):
-        timeSeries.dataTrainList.append(timeSeries.dataTestList[i])
-        timeSeries.dataTestList.append([])
-        timeSeries.dataTrainTestList.append(timeSeries.dataTestList[i])
-        
-    
+                
     # TREND FOLLOWING
-    tf = TrendFollowing(timeSeries, cash_start)
+    tf = TrendFollowing(timeSeries, cash_start, len(initialWarmupData))
  
-    max = len(timeSeries.dataTrainNp) * 0.95
+    max = len(initialWarmupData)
     
     pbounds = {'period': (2 , max)}
     optimizerTFS = BayesianOptimization(f = tf.TF_simple_bayes, pbounds = pbounds, random_state = 1, verbose = 0, allow_duplicate_points = True)
     optimizerTFS.maximize(init_points = 50, n_iter = 300)
-    best_tf_sma_period = int(optimizerTFS.max["params"]["period"])
+    best_sma_period = int(optimizerTFS.max["params"]["period"])
     print("Best Trend Following SMA period is", optimizerTFS.max)
      
     # pbounds = {'alpha': (0.00001, 0.99999)}
@@ -71,6 +78,8 @@ if __name__ == "__main__":
     # print("Best Trend Following BB period, BB std and RSI period are", optimizerTFBR.max)
 
     print("--- %s seconds ---\n" % (time.time() - start_time))
+    
+    writeReportCsv(tf)
 
     # best_tf_sma_period = int(910.7174)
     # best_tf_ema_alpha = 0.0003081794498174938

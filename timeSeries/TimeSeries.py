@@ -77,6 +77,9 @@ class TimeSeries(ABC):
     def getSetNp(self, useSet = ALL):
         return self.singleTimeSeries.getSetNp(useSet)
 
+    def setCurrentSingleTimeSeries(self, index):
+        self.singleTimeSeries = self.singleTimeSeriesList[index]
+
     # Central plotting function to keep the plots consistent and save code repetition
     def plot(plotDataList, title = "Title", xlabel = "X", ylabel = "Y", legendLoc = "upper left", xValues = None, axis = plt):
         for i in range(len(plotDataList)):
@@ -95,5 +98,26 @@ class TimeSeries(ABC):
             axis.set_xlabel(xlabel)
             axis.set_ylabel(ylabel)
                 
-    def setCurrentSingleTimeSeries(self, index):
-        self.singleTimeSeries = self.singleTimeSeriesList[index]
+    def plotPrices(self, useSet):
+        pricesNp = self.getPricesNp(useSet)
+        plt.plot(pricesNp, label = useSet)
+        plt.title(f"Prices for {useSet} data")
+        plt.show()
+        
+    def plotIndicators(self, useSet, indicatorDf):
+        pricesNp = self.getPricesNp(useSet)
+        dates = pd.to_datetime(self.getDates(useSet))
+        if not indicatorDf['dates'].equals(pd.Series(dates)):
+            raise Exception("Dates not equal")
+        
+        # plotting prices
+        plt.plot(pricesNp, label = useSet)
+        # plotting indicators
+        plt.plot(indicatorDf, label = "indicator")
+        plt.show()
+        
+    def plotIndicatorsAndSignals():
+        pass
+        
+        
+        

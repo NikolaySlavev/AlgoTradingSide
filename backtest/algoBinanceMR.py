@@ -3,6 +3,7 @@ from strategies.MeanReversion import MeanReversion
 from timeSeries.TimeSeries import TimeSeries
 from timeSeries.BinanceTimeSeries import BinanceTimeSeries
 from statistics_1 import *
+from reporting.Reporting import writeReportCsv
 
 #import cProfile
 
@@ -24,7 +25,7 @@ if __name__ == "__main__":
     warmupSinceThisDate = sinceThisDate - datetime.timedelta(days = days // numSplits)
     
     client = Client(config["BINANCE"]["bin_api_key"], config["BINANCE"]["bin_api_secret"])
-    initialWarmupData = BinanceTimeSeries(client = client, config = config, dataPair = symbol, sinceThisDate = warmupSinceThisDate, untilThisDate = sinceThisDate, interval = interval, numSplits = 0, splitType = TimeSeriesSplitTypes.NONE, initialWarmupData = None).singleTimeSeries.dataFullNp
+    initialWarmupData = BinanceTimeSeries(client = client, config = config, dataPair = symbol, sinceThisDate = warmupSinceThisDate, untilThisDate = sinceThisDate, interval = interval, numSplits = 0, splitType = TimeSeriesSplitTypes.NONE, initialWarmupData = []).singleTimeSeries.dataFullNp
     timeSeries = BinanceTimeSeries(client = client, 
                                    config = config, 
                                    dataPair = symbol, 
@@ -32,7 +33,7 @@ if __name__ == "__main__":
                                    untilThisDate = untilThisDate, 
                                    interval = interval, 
                                    numSplits = numSplits, 
-                                   splitType = TimeSeriesSplitTypes.SKLEARN,
+                                   splitType = TimeSeriesSplitTypes.NORMAL,
                                    initialWarmupData = initialWarmupData)
     
     print("--- %s seconds ---\n" % (time.time() - start_time))
@@ -48,11 +49,15 @@ if __name__ == "__main__":
     
     max = len(initialWarmupData)
     
+    #mr.timeSeries.plotPrices(useSet = "trainTest")
+        
+    #pd.DataFrame(mr.timeSeries.dataFullNp, columns = list(mr.timeSeries.columnsNp.keys())).to_csv(r"plotData\plotPrices.csv", index = False)
+    
     ############### MEAN REVERSION ########################    
     pbounds = {'period': (2, max)}
     optimizerMRS = BayesianOptimization(f = mr.MR_simple_bayes, pbounds = pbounds, random_state = 1, verbose = 0, allow_duplicate_points = True)
     optimizerMRS.maximize(init_points = 20, n_iter = 50)
-    best_mr_sma_period = int(optimizerMRS.max["params"]["period"])
+    mr.best_sma_period = int(optimizerMRS.max["params"]["period"])
         
     # pbounds = {'alpha': (0.0001, 1)}
     # optimizerMRE = BayesianOptimization(f = mr.MR_exponential_bayes, pbounds = pbounds, random_state = 1, verbose = 0)
@@ -86,6 +91,8 @@ if __name__ == "__main__":
     
     print("--- %s seconds ---\n" % (time.time() - start_time))
     
+    writeReportCsv(mr)
+    
     buy_hold_test_all = []
     mr_sma_test_all = []
     mr_ema_test_all = []
@@ -105,16 +112,18 @@ if __name__ == "__main__":
         # BUY AND HOLD
         buy_hold_test_all.append(cash_start / prices_test[0] * prices_test)
         
-        mr_sma_test_all.append(mr.MR_simple(best_mr_sma_period))
+        mr_sma_test_all.append(mr.MR_simple(mr.best_mr_sma_period))
         # mr_ema_test_all.append(mr.MR_exponential(best_mr_ema_alpha))
         # mr_cross_sma_test_all.append(mr.MR_crossover_simple(best_mr_cross_sma_long_period, best_mr_cross_sma_short_period))
         # mr_cross_ema_test_all.append(mr.MR_crossover_exponential(best_mr_cross_ema_long_alpha, best_mr_cross_ema_short_alpha))
         # mr_bb_rsi_test_all.append(mr.MR_bb_rsi(best_mr_bb_period, best_mr_bb_std, best_mr_rsi_period))
     
+    #mr.timeSeries.plotIndicators(useSet = "trainTest")
+    
     figure, axis = plt.subplots(nrows = numSplits - 1, ncols = 1, figsize = (7, 7))
     for i in range(numSplits - 1):
         TimeSeries.plot([("Buy and Hold", buy_hold_test_all[i]), 
-                                                    ("MR SMA [" + str(best_mr_sma_period) + "]" , mr_sma_test_all[i])],
+                                                    ("MR SMA [" + str(mr.best_mr_sma_period) + "]" , mr_sma_test_all[i])],
                                                     # ("MR EMA [" + str(best_mr_ema_alpha) + "]" , mr_ema_test_all[i]),
                                                     # ("MR CROSS SMA [" + str(best_mr_cross_sma_long_period) + ", " + str(best_mr_cross_sma_short_period) + "]" , mr_cross_sma_test_all[i]),
                                                     # ("MR CROSS EMA [" + str(best_mr_cross_ema_long_alpha) + ", " + str(best_mr_cross_ema_short_alpha) + "]" , mr_cross_ema_test_all[i]),
@@ -131,7 +140,7 @@ if __name__ == "__main__":
         print("")
             
     plt.show()
-
+    
 # if __name__ == "__main__":
 #     cProfile.run('main()')
 #     exit()

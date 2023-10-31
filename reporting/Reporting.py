@@ -38,3 +38,48 @@ class Reporting():
     def cleanVars(self):
         self.content = {}
         self.q = {}
+
+
+def writeReportCsv(mr):
+    plotPricesDf = pd.DataFrame(mr.timeSeries.dataFullNp, columns = list(mr.timeSeries.columnsNp.keys()))
+    plotPricesDf["dateTime"] = pd.to_datetime(plotPricesDf["dateTime"])
+    plotPricesDf["closeTime"] = pd.to_datetime(plotPricesDf["closeTime"])
+    plotPricesDf.to_csv(r"plotData\plotPrices.csv", index = False)
+    
+    plotSplitsDf = pd.DataFrame()
+    for i in range(numSplits - 1):
+        mr.timeSeries.setCurrentSingleTimeSeries(i)
+        
+        df = mr.timeSeries.getSetNp(TRAIN)
+        df = pd.DataFrame(df, columns = list(mr.timeSeries.columnsNp.keys()))
+        df["setType"] = TRAIN
+        df["splitNum"] = i
+        plotSplitsDf = plotSplitsDf.append(df)
+        
+        df = mr.timeSeries.getSetNp(TEST)
+        df = pd.DataFrame(df, columns = list(mr.timeSeries.columnsNp.keys()))
+        df["setType"] = TEST
+        df["splitNum"] = i
+        plotSplitsDf = plotSplitsDf.append(df)
+        
+        df = mr.timeSeries.getSetNp(TRAIN + WARMUP)
+        df = pd.DataFrame(df, columns = list(mr.timeSeries.columnsNp.keys()))
+        df["setType"] = TRAIN + WARMUP
+        df["splitNum"] = i
+        plotSplitsDf = plotSplitsDf.append(df)
+        
+        df = mr.timeSeries.getSetNp(TEST + WARMUP)
+        df = pd.DataFrame(df, columns = list(mr.timeSeries.columnsNp.keys()))
+        df["setType"] = TEST + WARMUP
+        df["splitNum"] = i
+        plotSplitsDf = plotSplitsDf.append(df)
+                
+    plotSplitsDf = plotSplitsDf[["dateTime", "open", "close", "setType", "splitNum"]]
+    plotSplitsDf["dateTime"] = pd.to_datetime(plotSplitsDf["dateTime"])
+    plotSplitsDf.to_csv(r"plotData\plotSplits.csv", index = False)
+
+    mr.timeSeries.reportEnabled = True
+    output = mr.TF_simple(mr.best_sma_period)
+    plotIndicatorsDf = pd.DataFrame(output)
+    plotIndicatorsDf["dates"] = pd.to_datetime(plotIndicatorsDf["dates"])
+    plotIndicatorsDf.to_csv(r"plotData\plotIndicators.csv", index = False)
