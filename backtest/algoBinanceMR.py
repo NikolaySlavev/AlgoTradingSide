@@ -112,7 +112,7 @@ if __name__ == "__main__":
         # BUY AND HOLD
         buy_hold_test_all.append(cash_start / prices_test[0] * prices_test)
         
-        mr_sma_test_all.append(mr.MR_simple(mr.best_mr_sma_period))
+        mr_sma_test_all.append(mr.MR_simple(mr.best_sma_period))
         # mr_ema_test_all.append(mr.MR_exponential(best_mr_ema_alpha))
         # mr_cross_sma_test_all.append(mr.MR_crossover_simple(best_mr_cross_sma_long_period, best_mr_cross_sma_short_period))
         # mr_cross_ema_test_all.append(mr.MR_crossover_exponential(best_mr_cross_ema_long_alpha, best_mr_cross_ema_short_alpha))
@@ -123,7 +123,7 @@ if __name__ == "__main__":
     figure, axis = plt.subplots(nrows = numSplits - 1, ncols = 1, figsize = (7, 7))
     for i in range(numSplits - 1):
         TimeSeries.plot([("Buy and Hold", buy_hold_test_all[i]), 
-                                                    ("MR SMA [" + str(mr.best_mr_sma_period) + "]" , mr_sma_test_all[i])],
+                                                    ("MR SMA [" + str(mr.best_sma_period) + "]" , mr_sma_test_all[i])],
                                                     # ("MR EMA [" + str(best_mr_ema_alpha) + "]" , mr_ema_test_all[i]),
                                                     # ("MR CROSS SMA [" + str(best_mr_cross_sma_long_period) + ", " + str(best_mr_cross_sma_short_period) + "]" , mr_cross_sma_test_all[i]),
                                                     # ("MR CROSS EMA [" + str(best_mr_cross_ema_long_alpha) + ", " + str(best_mr_cross_ema_short_alpha) + "]" , mr_cross_ema_test_all[i]),
