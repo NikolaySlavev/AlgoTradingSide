@@ -1,5 +1,6 @@
 import requests
 import json
+import os
 import time
 import configparser
 from chatGpt import chatGpt
@@ -10,11 +11,8 @@ from newsBot.discordDbUtils import *
 
 #channelIdDict = {"Wild Forest": 943101879095791657, "Battle Crush": 1145901840542736404, "The Heist": 1067136426782760970}
 
-config = configparser.ConfigParser()
-config.read("config/prod.env")
 
-
-class DiscordNews(config):
+class DiscordNews():
     chatGptPromptMsg = """Give me yes or no answers and why you think so in 1 sentence to the questions below. The questions are regarding the post labeled "POST/". 
                     1/ Is the information positive and worth getting hyped about?
                     2/ Does it inform that something new has happened or about to happen?
@@ -28,9 +26,9 @@ class DiscordNews(config):
                     10/ Does it involve any partnership with a well-known company?
                     POST/ """
     
-    def __init__(self):
+    def __init__(self):        
         self.config = configparser.ConfigParser()
-        self.config.read("config/prod.env")
+        self.config.read(os.environ['PYTHONPATH'] + "/config/prod.env")
         self.authorization = self.config["DISCORD"]["authorization"]
         self.discordNewsInfo = getDiscordNewsInfo(self.config)
         
