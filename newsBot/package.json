@@ -14,6 +14,7 @@
     "@solana/web3.js": "^1.87.6",
     "bs58": "^5.0.0",
     "configparser": "^0.3.10",
-    "cross-fetch": "^4.0.0"
+    "cross-fetch": "^4.0.0",
+    "nodemailer": "^6.9.7"
   }
 }
