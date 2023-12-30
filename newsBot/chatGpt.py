@@ -1,4 +1,6 @@
 from openai import OpenAI
+import configparser
+import os
 
 msg = """
 Is the following post positive and worth getting hyped about? Give me a yes or no answer.
@@ -31,6 +33,9 @@ def chatGpt(msg):
     model = "gpt-3.5-turbo"
     
     # defaults to os.environ.get("OPENAI_API_KEY")
+    config = configparser.ConfigParser()
+    config.read(os.environ['PYTHONPATH'] + "/config/prod.env")    
+    chatGptAccessKey = config["CHATGPT"]["chatGptAccessKey"]
     client = OpenAI(api_key = chatGptAccessKey)
     chat_completion = client.chat.completions.create(messages = [{"role": "user", "content": msg}], model = model)    
     response = chat_completion.choices[0].message.content
