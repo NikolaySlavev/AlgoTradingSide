@@ -56,28 +56,28 @@ const wallet = new Wallet(Keypair.fromSecretKey(bs58.decode(solana_prv_key_walle
 
 console.log(5);
 
-// Retrieve the `indexed-route-map`
-const indexedRouteMap = await (await fetch('https://quote-api.jup.ag/v6/indexed-route-map')).json();
-const getMint = (index) => indexedRouteMap["mintKeys"][index];
-const getIndex = (mint) => indexedRouteMap["mintKeys"].indexOf(mint);
+// // Retrieve the `indexed-route-map`
+// const indexedRouteMap = await (await fetch('https://quote-api.jup.ag/v6/indexed-route-map')).json();
+// const getMint = (index) => indexedRouteMap["mintKeys"][index];
+// const getIndex = (mint) => indexedRouteMap["mintKeys"].indexOf(mint);
 
-console.log(6);
+// console.log(6);
 
-// Generate the route map by replacing indexes with mint addresses
-var generatedRouteMap = {};
-Object.keys(indexedRouteMap['indexedRouteMap']).forEach((key, index) => {
-  generatedRouteMap[getMint(key)] = indexedRouteMap["indexedRouteMap"][key].map((index) => getMint(index))
-});
+// // Generate the route map by replacing indexes with mint addresses
+// var generatedRouteMap = {};
+// Object.keys(indexedRouteMap['indexedRouteMap']).forEach((key, index) => {
+//   generatedRouteMap[getMint(key)] = indexedRouteMap["indexedRouteMap"][key].map((index) => getMint(index))
+// });
 
-console.log(7);
+// console.log(7);
 
-// List all possible input tokens by mint address
-const allInputMints = Object.keys(generatedRouteMap);
+// // List all possible input tokens by mint address
+// const allInputMints = Object.keys(generatedRouteMap);
 
-// List all possition output tokens that can be swapped from the mint address for SOL.
-// SOL -> X
-const swappableOutputForSOL = generatedRouteMap['So11111111111111111111111111111111111111112'];
-console.log({ allInputMints, swappableOutputForSOL })
+// // List all possition output tokens that can be swapped from the mint address for SOL.
+// // SOL -> X
+// const swappableOutputForSOL = generatedRouteMap['So11111111111111111111111111111111111111112'];
+// console.log({ allInputMints, swappableOutputForSOL })
 
 // Swapping SOL to USDC with input 0.1 SOL and 0.5% slippage
 const inputMint = 'So11111111111111111111111111111111111111112';
