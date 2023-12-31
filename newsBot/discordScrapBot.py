@@ -9,6 +9,10 @@ from datetime import datetime
 from newsBot.discordDbUtils import *
 
 
+
+msg = """test"""
+
+
 class DiscordNews():
     chatGptPromptMsg = """Give me yes or no answers and why you think so in 1 sentence to the questions below. The questions are regarding the post labeled "POST/". 
                     1/ Is the information positive and worth getting hyped about?
@@ -46,7 +50,6 @@ class DiscordNews():
                 print(f"CONTENT CREATED: {reqText['timestamp']}")
 
                 response = chatGpt(self.chatGptPromptMsg + reqText["content"])
-                print(reqText["content"])
                 print(response)
 
                 if (response.count("Yes") == 3):
@@ -65,15 +68,14 @@ class DiscordNews():
             raise Exception(f"reqAllTexts has length of {len(reqAllTexts)}")
         
         return reqAllTexts[0]
+    
+    def test(self, msg):
+        response = chatGpt(self.chatGptPromptMsg + msg)
+        print(response)
         
         
 if __name__ == "__main__":
     discordNews = DiscordNews()
-    discordNews.execute()
-
-# have a sql table with all the projects and the last timestamp recorded
-# load all of that in memory for quick access and when new reported, update the table
-# add to logger when news appears and add to logger on error
-
-# check all channels in order with 2sec delay?
-# test with 10sec delay first to check
+    #discordNews.execute()
+    
+    discordNews.test(msg)
