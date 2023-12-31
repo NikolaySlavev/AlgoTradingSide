@@ -76,6 +76,5 @@ class DiscordNews():
         
 if __name__ == "__main__":
     discordNews = DiscordNews()
-    #discordNews.execute()
-    
-    discordNews.test(msg)
+    discordNews.execute()
+    #discordNews.test(msg)
