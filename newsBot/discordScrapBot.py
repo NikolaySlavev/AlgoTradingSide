@@ -9,9 +9,6 @@ from datetime import datetime
 from newsBot.discordDbUtils import *
 
 
-#channelIdDict = {"Wild Forest": 943101879095791657, "Battle Crush": 1145901840542736404, "The Heist": 1067136426782760970}
-
-
 class DiscordNews():
     chatGptPromptMsg = """Give me yes or no answers and why you think so in 1 sentence to the questions below. The questions are regarding the post labeled "POST/". 
                     1/ Is the information positive and worth getting hyped about?
@@ -41,17 +38,18 @@ class DiscordNews():
             reqText["timestamp_new"] = datetime.strptime(reqText["timestamp"], "%Y-%m-%dT%H:%M:%S.%f%z").replace(microsecond=0).replace(tzinfo=None)
             discordNewsDate = reqText["timestamp_new"].strftime('%Y-%m-%d %H:%M:%S')
             discordReadDate = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            if True:
-            #if (reqText['timestamp_new'] != channelRow["last_news_date"].to_pydatetime()):
+            if (reqText['timestamp_new'] != channelRow["last_news_date"].to_pydatetime()):
                 updateDiscordNewsInfo(channelRow["channel_id"], reqText["timestamp_new"], self.config)
                 self.discordNewsInfo.loc[id, "last_news_date"] = reqText['timestamp_new']
             
+                print(f"CONTENT: {reqText['content']}")
+                print(f"CONTENT CREATED: {reqText['timestamp']}")
+
                 response = chatGpt(self.chatGptPromptMsg + reqText["content"])
                 print(reqText["content"])
                 print(response)
 
-                if True:
-                #if (response.count("Yes") == 3):
+                if (response.count("Yes") == 3):
                     with open(os.environ['PYTHONPATH'] + "/newsBot/newsBot.txt", "a") as file:
                         file.write(f"\n{self.discordNewsInfo.loc[id, 'token_name']},{self.discordNewsInfo.loc[id, 'token_id']},{discordReadDate},{discordNewsDate}")
                         
@@ -66,8 +64,6 @@ class DiscordNews():
         if len(reqAllTexts) != 1:
             raise Exception(f"reqAllTexts has length of {len(reqAllTexts)}")
         
-        print(f"CONTENT LENGTH: {len(reqAllTexts[0]['content'])}")
-        print(f"CONTENT CREATED: {reqAllTexts[0]['timestamp']}")
         return reqAllTexts[0]
         
         
