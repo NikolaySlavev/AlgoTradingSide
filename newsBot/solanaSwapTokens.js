@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import { createInterface } from 'readline';
 import { setTimeout } from "timers/promises";
 import nodemailer from "nodemailer";
-import ConfigParser from 'configParser';
+import ConfigParser from 'configparser';
 import {SecretsManagerClient, GetSecretValueCommand} from "@aws-sdk/client-secrets-manager";
 
 //const ConfigParser = require('configparser');
