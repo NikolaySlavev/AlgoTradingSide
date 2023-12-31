@@ -52,7 +52,7 @@ class DiscordNews():
 
                 if True:
                 #if (response.count("Yes") == 3):
-                    with open("D:/Sidework/AlgoTrading/newsBot/newsBot.txt", "a") as file:
+                    with open(os.environ['PYTHONPATH'] + "/newsBot/newsBot.txt", "a") as file:
                         file.write(f"\n{self.discordNewsInfo.loc[id, 'token_name']},{self.discordNewsInfo.loc[id, 'token_id']},{discordReadDate},{discordNewsDate}")
                         
                     break
