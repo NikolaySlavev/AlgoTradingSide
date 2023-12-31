@@ -2,13 +2,21 @@
 import pandas as pd
 import sshtunnel
 import MySQLdb
-
+import boto3
+import json
 
 BASESTEPSIZE = 0.00001
 MAXERRORLENGTH = 2000
 
 sshtunnel.SSH_TIMEOUT = 5.0
 sshtunnel.TUNNEL_TIMEOUT = 5.0
+
+def get_secret(secretKey):
+    session = boto3.session.Session()
+    client = session.client(service_name='secretsmanager',region_name="eu-north-1")
+    get_secret_value_response = client.get_secret_value(SecretId="NSsecrets")
+    return json.loads(get_secret_value_response['SecretString'])[secretKey]
+
 
 class DiscordNewsInfo():
     def __init__(self, channelName, channelId, lastNewsDate):
@@ -30,11 +38,11 @@ class DiscordNewsLog():
 def updateDiscordNewsInfo(channelId, lastNewsDate, config):
     with sshtunnel.SSHTunnelForwarder(
     (config["MYSQL"]["ssh_host"]), 
-    ssh_username=config["MYSQL"]["ssh_user"], ssh_password=config["MYSQL"]["ssh_password"], 
+    ssh_username=config["MYSQL"]["ssh_user"], ssh_password=get_secret("database_password"), 
     remote_bind_address=(config["MYSQL"]["database_host"], 3306)) as tunnel:
         mydb = MySQLdb.connect(
             user=config["MYSQL"]["database_user"],
-            passwd=config["MYSQL"]["database_password"],
+            passwd=get_secret("database_password"),
             host='127.0.0.1', port=tunnel.local_bind_port,
             db=config["MYSQL"]["database_name"])
         try:
@@ -56,11 +64,11 @@ def writeDiscordNewsLog(discordNewsLog, config):
     #mydb = mysql.connector.connect(user = config["MYSQL"]["database_user"], password = config["MYSQL"]["database_password"], host = config["MYSQL"]["database_host"], database = config["MYSQL"]["database_name"])
     with sshtunnel.SSHTunnelForwarder(
     (config["MYSQL"]["ssh_host"]), 
-    ssh_username=config["MYSQL"]["ssh_user"], ssh_password=config["MYSQL"]["ssh_password"], 
+    ssh_username=config["MYSQL"]["ssh_user"], ssh_password=get_secret("database_password"),
     remote_bind_address=(config["MYSQL"]["database_host"], 3306)) as tunnel:
         mydb = MySQLdb.connect(
             user=config["MYSQL"]["database_user"],
-            passwd=config["MYSQL"]["database_password"],
+            passwd=get_secret("database_password"),
             host='127.0.0.1', port=tunnel.local_bind_port,
             db=config["MYSQL"]["database_name"])
         try:
@@ -78,11 +86,11 @@ def writeDiscordNewsLog(discordNewsLog, config):
 def getDiscordNewsInfo(config):
     with sshtunnel.SSHTunnelForwarder(
     (config["MYSQL"]["ssh_host"]), 
-    ssh_username=config["MYSQL"]["ssh_user"], ssh_password=config["MYSQL"]["ssh_password"], 
+    ssh_username=config["MYSQL"]["ssh_user"], ssh_password=get_secret("database_password"), 
     remote_bind_address=(config["MYSQL"]["database_host"], 3306)) as tunnel:
         mydb = MySQLdb.connect(
             user=config["MYSQL"]["database_user"],
-            passwd=config["MYSQL"]["database_password"],
+            passwd=get_secret("database_password"),
             host='127.0.0.1', port=tunnel.local_bind_port,
             db=config["MYSQL"]["database_name"])
         try:

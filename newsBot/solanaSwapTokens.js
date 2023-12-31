@@ -9,37 +9,28 @@ import { createInterface } from 'readline';
 import { setTimeout } from "timers/promises";
 import nodemailer from "nodemailer";
 import ConfigParser from 'configParser';
+import {SecretsManagerClient, GetSecretValueCommand} from "@aws-sdk/client-secrets-manager";
 
 //const ConfigParser = require('configparser');
+
+async function get_secret(secretKey) {
+  const client = new SecretsManagerClient({region: "eu-north-1",});
+  let response;
+  response = await client.send(new GetSecretValueCommand({SecretId: "NSsecrets", VersionStage: "AWSCURRENT"}));
+  return JSON.parse(response.SecretString)[secretKey];
+}
+
+const solana_prv_key_wallet = await get_secret("solana_prv_key_wallet")
+
+console.log(1);
 
 const config = new ConfigParser();
 config.read(process.env.PROJECTDIR + '/config/prod.env');
 const rpc_url = config.get('JS', 'rpc_url');
-const solana_prv_key_wallet = config.get('JS', 'solana_prv_key_wallet');
+//const solana_prv_key_wallet = config.get('JS', 'solana_prv_key_wallet');
 
-// GLOBAL
-// It is recommended that you use your own RPC endpoint.
-// This RPC endpoint is only for demonstration purposes so that this example will run.
+console.log(2);
 
-
-// function getData(fileName, type) {
-//   return fs.promises.readFile(fileName, {encoding: type});
-// }
-
-// async function getFirstLine(pathToFile) {
-//   const readable = fs.createReadStream(pathToFile);
-//   const reader = createInterface({ input: readable });
-//   const line = await new Promise((resolve) => {
-//     reader.on('line', (line) => {
-//       reader.close();
-//       resolve(line);
-//     });
-//   });
-//   readable.close();
-//   return line;
-// }
-
-//var lineToSplit = await getFirstLine('D:/Sidework/AlgoTrading/newsBot/newsBot.txt');
 var lineToSplit = process.argv[2];
 var lineSplit = lineToSplit.split(',');
 const tokenName = lineSplit[0];
@@ -47,6 +38,7 @@ const tokenId = lineSplit[1];
 const discordReadDate = lineSplit[2];
 const discordNewsDate = lineSplit[3];
 
+console.log(3);
 
 // check if written line is within the last 1 hour!!!!!! to avoid trading the same thing twice
 var ONE_HOUR = 60 * 60 * 1000; /* ms */
@@ -57,19 +49,27 @@ if (isNew == false) {
   throw new Error('Discord Date is not within 1 hour of execution');
 }
 
+console.log(4);
+
 const connection = new Connection(rpc_url);
 const wallet = new Wallet(Keypair.fromSecretKey(bs58.decode(solana_prv_key_wallet || '')));
+
+console.log(5);
 
 // Retrieve the `indexed-route-map`
 const indexedRouteMap = await (await fetch('https://quote-api.jup.ag/v6/indexed-route-map')).json();
 const getMint = (index) => indexedRouteMap["mintKeys"][index];
 const getIndex = (mint) => indexedRouteMap["mintKeys"].indexOf(mint);
 
+console.log(6);
+
 // Generate the route map by replacing indexes with mint addresses
 var generatedRouteMap = {};
 Object.keys(indexedRouteMap['indexedRouteMap']).forEach((key, index) => {
   generatedRouteMap[getMint(key)] = indexedRouteMap["indexedRouteMap"][key].map((index) => getMint(index))
 });
+
+console.log(7);
 
 // List all possible input tokens by mint address
 const allInputMints = Object.keys(generatedRouteMap);
@@ -122,23 +122,6 @@ console.log(transaction);
 transaction.sign([wallet.payer]);
 
 console.log("7")
-
-// const blockhashResponse = await connection.getLatestBlockhashAndContext();
-// const lastValidBlockHeight = blockhashResponse.context.slot + 150;
-// const rawTransaction = transaction.serialize();
-// let blockheight = await connection.getBlockHeight();
-
-// while (blockheight < lastValidBlockHeight) {
-//   connection.sendRawTransaction(rawTransaction, {
-//     skipPreflight: true,
-//   });
-//   await setTimeout(500);
-//   blockheight = await connection.getBlockHeight();
-//   console.log(blockheight);
-//   console.log(lastValidBlockHeight);
-//   console.log(123123);
-// }
-
 
 // Execute the transaction
 const rawTransaction = transaction.serialize()
