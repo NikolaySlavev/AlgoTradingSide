@@ -1,6 +1,9 @@
 from openai import OpenAI
 import configparser
 import os
+import time
+from openai import RateLimitError
+
 
 msg = """
 Is the following post positive and worth getting hyped about? Give me a yes or no answer.
@@ -37,9 +40,14 @@ def chatGpt(msg):
     config.read(os.environ['PYTHONPATH'] + "/config/prod.env")    
     chatGptAccessKey = config["CHATGPT"]["chatGptAccessKey"]
     client = OpenAI(api_key = chatGptAccessKey)
-    chat_completion = client.chat.completions.create(messages = [{"role": "user", "content": msg}], model = model)    
-    response = chat_completion.choices[0].message.content
-    return response
+    try:
+        create_response = client.chat.completions.create(messages = [{"role": "user", "content": msg}], model = model, top_p = 0.05)
+    except RateLimitError as ex:
+        print(ex)
+        time.sleep(10)
+        create_response = client.chat.completions.create(messages = [{"role": "user", "content": msg}], model = model, top_p = 0.1)
+
+    return create_response.choices[0].message.content
 
 if __name__ == "__main__":
     chatGpt(msg)
